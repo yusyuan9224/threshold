@@ -14,7 +14,11 @@ swift build -c "$config" --product ThresholdApp --package-path "$root"
 bin="$(swift build -c "$config" --package-path "$root" --show-bin-path)/ThresholdApp"
 [ -x "$bin" ] || { echo "executable not found: $bin" >&2; exit 1; }
 
-app="$root/$out/Threshold.app"
+case "$out" in
+  /*) out_dir="$out" ;;
+  *) out_dir="$root/$out" ;;
+esac
+app="$out_dir/Threshold.app"
 # Only the bundle this script produced is replaced; never anything outside "$out".
 if [ -d "$app" ]; then rm -r "$app"; fi
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
