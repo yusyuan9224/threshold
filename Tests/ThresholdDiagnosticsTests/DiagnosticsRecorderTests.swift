@@ -55,6 +55,27 @@ import Foundation
         #expect(decoded.events[0].fields["confidence"] == .double(0.87))
     }
 
+    @Test func recordRedactsMessageBeforeItReachesStorage() async throws {
+        let recorder = DiagnosticsRecorder(capacity: 10, appVersion: "1.0.0-test")
+        let raw = "Someone's iPhone 123E4567-E89B-12D3-A456-426614174000 AA:BB:CC:DD:EE:FF host.local"
+        await recorder.record(category: .bleObservation, message: raw, monotonicNanoseconds: 0)
+
+        let snapshot = await recorder.snapshot(limit: 1)
+        let stored = try #require(snapshot.events.first).message
+        #expect(!stored.contains("Someone's iPhone"))
+        #expect(!stored.contains("123E4567-E89B-12D3-A456-426614174000"))
+        #expect(!stored.contains("AA:BB:CC:DD:EE:FF"))
+        #expect(!stored.contains("host.local"))
+
+        let data = try await recorder.export()
+        let text = try #require(String(data: data, encoding: .utf8))
+        #expect(!text.contains("Someone's iPhone"))
+        #expect(!text.contains("123E4567-E89B-12D3-A456-426614174000"))
+        #expect(!text.contains("AA:BB:CC:DD:EE:FF"))
+        #expect(!text.contains("host.local"))
+        #expect(DiagnosticsExportAnonymityCheck.findings(in: data).isEmpty)
+    }
+
     @Test func actorIsolationHandles10000ConcurrentRecords() async {
         let recorder = DiagnosticsRecorder(appVersion: "1.0.0-test")
         await withTaskGroup(of: Void.self) { group in

@@ -55,9 +55,13 @@ public actor DiagnosticsRecorder {
         self.events.reserveCapacity(capacity)
     }
 
-    /// Records one event: assigns `sequence` and wall clock, applies `PrivacyFilter`, appends to
-    /// the ring buffer (dropping the oldest entry if at capacity), and optionally logs a redacted
-    /// summary via `os.Logger` (category/message `.public`, fields `.private`).
+    /// Records one event: assigns `sequence` and wall clock, runs both the free-form `message` and
+    /// `fields` through `PrivacyFilter`, appends to the ring buffer (dropping the oldest entry if at
+    /// capacity), and optionally logs a summary via `os.Logger`.
+    ///
+    /// Only `category` is logged `.public`: it comes from a closed enum. The message is caller-authored
+    /// text and stays `.private` even after redaction, so an unanticipated sensitive shape cannot reach
+    /// the system log in the clear.
     public func record(
         category: DiagnosticEvent.Category,
         message: String,
@@ -65,6 +69,7 @@ public actor DiagnosticsRecorder {
         fields: [String: DiagnosticEvent.FieldValue] = [:]
     ) {
         let filteredFields = PrivacyFilter.apply(to: fields, deviceAlias: &deviceAlias)
+        let filteredMessage = PrivacyFilter.redact(message)
 
         let sequence = nextSequence
         nextSequence += 1
@@ -75,7 +80,7 @@ public actor DiagnosticsRecorder {
             monotonicNanoseconds: monotonicNanoseconds,
             wallClock: clock(),
             category: category,
-            message: message,
+            message: filteredMessage,
             fields: filteredFields
         )
 
@@ -85,7 +90,7 @@ public actor DiagnosticsRecorder {
             droppedCount += 1
         }
 
-        logger?.debug("[\(category.rawValue, privacy: .public)] \(message, privacy: .public) fields=\(String(describing: filteredFields), privacy: .private)")
+        logger?.debug("[\(category.rawValue, privacy: .public)] \(filteredMessage, privacy: .private) fields=\(String(describing: filteredFields), privacy: .private)")
     }
 
     /// The most recent `limit` events, newest last.

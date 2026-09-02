@@ -1,6 +1,6 @@
 import Foundation
 
-/// De-identification rules applied to every field before it enters the ring buffer, so raw
+/// De-identification rules applied to every event before it enters the ring buffer, so raw
 /// sensitive values never enter `DiagnosticsRecorder`'s storage (ADR-007).
 enum PrivacyFilter {
     /// Filters `fields`, aliasing device identifiers via `deviceAlias` and dropping anything that
@@ -40,6 +40,25 @@ enum PrivacyFilter {
         return result
     }
 
+    /// Rewrites every sensitive shape in a free-form message to a constant token.
+    ///
+    /// `message` is exported and logged just like `fields`, so it is exactly as sensitive; unlike a
+    /// field it cannot simply be dropped without losing the reason the event was recorded, so each
+    /// match is replaced in place instead. Tokens are constants, which keeps two recordings of the
+    /// same message identical and keeps the result free of anything
+    /// `DiagnosticsExportAnonymityCheck` would flag.
+    static func redact(_ message: String) -> String {
+        var result = message
+        for rule in SensitivePatterns.redactionRules {
+            result = rule.pattern.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: rule.token
+            )
+        }
+        return result
+    }
+
     private static func isSensitiveKey(_ lowerKey: String) -> Bool {
         lowerKey.contains("password") || lowerKey.contains("passcode") || lowerKey.contains("credential")
     }
@@ -52,28 +71,5 @@ enum PrivacyFilter {
         SensitivePatterns.uuid.hasMatch(in: value)
             || SensitivePatterns.macAddress.hasMatch(in: value)
             || SensitivePatterns.email.hasMatch(in: value)
-    }
-}
-
-/// Regexes shared with `DiagnosticsExportAnonymityCheck`, which scans whole export blobs for the
-/// same shapes rather than individual field values.
-enum SensitivePatterns {
-    static let uuid = try! NSRegularExpression(
-        pattern: "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}"
-    )
-    static let macAddress = try! NSRegularExpression(
-        pattern: "([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"
-    )
-    static let email = try! NSRegularExpression(
-        pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
-    )
-    static let localHostname = try! NSRegularExpression(
-        pattern: "\\b[A-Za-z0-9-]+\\.local\\b"
-    )
-}
-
-extension NSRegularExpression {
-    func hasMatch(in string: String) -> Bool {
-        firstMatch(in: string, range: NSRange(string.startIndex..., in: string)) != nil
     }
 }

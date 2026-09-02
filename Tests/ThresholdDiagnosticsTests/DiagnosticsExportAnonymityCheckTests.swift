@@ -37,6 +37,12 @@ import Foundation
         #expect(!DiagnosticsExportAnonymityCheck.findings(in: json).isEmpty)
     }
 
+    @Test func findsPlantedOwnerNamedDevice() {
+        let json = Data(#"{"note":"Someone's iPhone"}"#.utf8)
+        let findings = DiagnosticsExportAnonymityCheck.findings(in: json)
+        #expect(findings.contains { $0.localizedCaseInsensitiveContains("device") })
+    }
+
     @Test func findsPlantedHomePath() {
         let json = Data(#"{"note":"/Users/yusyuan/secret.txt"}"#.utf8)
         #expect(!DiagnosticsExportAnonymityCheck.findings(in: json).isEmpty)
