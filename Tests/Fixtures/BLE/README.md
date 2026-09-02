@@ -43,12 +43,14 @@ A recording must open with a `sensor` line: the presence axis only advances whil
 `SensorHealth == .healthy`, and the engine starts in `initializing`.
 
 Fixtures are discovered by scanning this directory, so dropping in a `<scenario>.jsonl` and its
-`<scenario>.expected.json` is enough to add it to the regression set.
+`<scenario>.expected.json` is enough to add it to the regression set. The filename **is** the
+scenario: a capture saved as `desk-1m.jsonl` must carry `"scenario":"desk-1m"`, so a golden can
+never be matched against the wrong recording.
 
 ## Anonymisation
 
-`DeviceID` is `device-A` / `device-B`. No serial numbers, MAC addresses, device names or
-wall-clock timestamps. `scripts/check-boundaries.sh` fails the build on a UUID- or MAC-shaped
+`DeviceID` is `device-` plus one or two uppercase letters, assigned in capture order: `device-A`,
+`device-B`. No serial numbers, MAC addresses, device names or wall-clock timestamps. `scripts/check-boundaries.sh` fails the build on a UUID- or MAC-shaped
 string anywhere under `Tests/Fixtures`.
 
 ## Goldens

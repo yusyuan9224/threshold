@@ -41,6 +41,8 @@ struct FixtureReplayTests {
     func metadataIsAnonymisedAndComplete(_ name: String) throws {
         let meta = try Fixtures.load(name).meta
         #expect(meta.kind == "meta")
+        // The filename is the scenario: a capture dropped in as `desk-1m.jsonl` must say
+        // `"scenario":"desk-1m"`, so a golden can never be matched against the wrong recording.
         #expect(meta.scenario == name)
         #expect(meta.anonymized)
         #expect(["laptop", "desktop"].contains(meta.macClass))
@@ -50,9 +52,14 @@ struct FixtureReplayTests {
 
     @Test(arguments: Fixtures.names)
     func deviceNamesAreAnonymised(_ name: String) throws {
+        // `device-A`, `device-B`, … assigned in capture order. Anything longer is a name, a serial
+        // or an identifier that should never have reached a fixture.
         for case .observation(let observation) in try Fixtures.load(name).inputs {
-            #expect(observation.device.raw.hasPrefix("device-"))
-            #expect(observation.device.raw.count <= 8)
+            let alias = observation.device.raw
+            #expect(alias.hasPrefix("device-"))
+            let suffix = alias.dropFirst("device-".count)
+            #expect(!suffix.isEmpty && suffix.count <= 2)
+            #expect(suffix.allSatisfy { $0.isLetter && $0.isUppercase })
         }
     }
 

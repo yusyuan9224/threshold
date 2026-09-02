@@ -71,11 +71,14 @@ enum FixtureWriter {
         ])
     }
 
-    /// Refuses to clobber an existing file, and refuses a path whose directory does
-    /// not exist. A field run costs the operator real time, and a recording that
-    /// cannot be reproduced must not be lost to an overwrite or a typo'd directory.
-    /// Called before scanning starts as well as at write time.
-    static func checkWritable(_ path: String) throws {
+    /// Refuses to clobber an existing file, refuses a path whose directory does not
+    /// exist, and refuses a filename that disagrees with `--scenario`.
+    ///
+    /// A field run costs the operator real time, so all three are checked before
+    /// scanning starts as well as at write time. Losing a thirty-minute walk-around
+    /// to a typo'd directory, or finding out afterwards that the file cannot be used
+    /// as a fixture, is the worst possible moment to learn either.
+    static func checkWritable(_ path: String, scenario: String) throws {
         let url = URL(fileURLWithPath: path)
         guard !FileManager.default.fileExists(atPath: url.path) else {
             throw ToolError("\(path) already exists — pick another --out path")
@@ -87,11 +90,31 @@ enum FixtureWriter {
         else {
             throw ToolError("\(directory) is not a directory")
         }
+
+        // The replay scans `Tests/Fixtures/BLE` and matches `<scenario>.jsonl` to
+        // `<scenario>.expected.json`, so the filename *is* the scenario: a capture
+        // saved under one name carrying another in its meta line can never be used,
+        // and the engine's metadata test rejects it. Enforced here rather than left
+        // to the operator, because the cost of the mistake is a whole run.
+        let name = url.deletingPathExtension().lastPathComponent
+        guard name == scenario else {
+            throw ToolError(
+                """
+                --out names the file \(name).jsonl but --scenario is \(scenario). The \
+                filename is the scenario: the replay matches \(scenario).jsonl to \
+                \(scenario).expected.json. Use --out …/\(scenario).jsonl, or change \
+                --scenario to \(name) if that is what you meant to record.
+                """
+            )
+        }
+        guard url.pathExtension == "jsonl" else {
+            throw ToolError("--out must end in .jsonl (the replay only scans for \(scenario).jsonl)")
+        }
     }
 
-    static func write(lines: [String], to path: String) throws {
+    static func write(lines: [String], to path: String, scenario: String) throws {
         let url = URL(fileURLWithPath: path)
-        try checkWritable(path)
+        try checkWritable(path, scenario: scenario)
         let contents = lines.joined(separator: "\n") + "\n"
         guard let data = contents.data(using: .utf8) else {
             throw ToolError("could not encode the fixture as UTF-8")

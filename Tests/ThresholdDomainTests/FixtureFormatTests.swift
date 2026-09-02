@@ -58,6 +58,29 @@ struct FixtureFormatTests {
         #expect(meta.profile == nil, "a recording without a calibration profile replays against the default")
     }
 
+    /// The exact meta line `rssi-record --profile` emits, including the integer-shaped JSON numbers
+    /// it writes for whole values. They must land as Doubles without disturbing the fractional ones.
+    @Test func recordedMetadataWithAProfileDecodes() throws {
+        let json = #"""
+        {"kind":"meta","macClass":"laptop","deviceClass":"iphone","scenario":"desk-1m","recorder":"rssi-record 0.1","anonymized":true,"durationMs":6273,"profile":{"nearBaseline":-52,"farBaseline":-78.5,"noise":3.25,"midpoint":-64,"slope":5}}
+        """#
+        let meta = try JSONDecoder().decode(FixtureMeta.self, from: Data(json.utf8))
+        let profile = try #require(meta.profile).calibrationProfile
+        #expect(profile == CalibrationProfile(nearBaseline: -52, farBaseline: -78.5, noise: 3.25, midpoint: -64, slope: 5))
+        #expect(profile != .default, "a fixture must never arm a replay with the display-only default")
+    }
+
+    /// A recorded profile has to survive the trip and produce the scoring the capture was made
+    /// under — which is the whole reason it travels with the recording.
+    @Test func aRecordedProfileDrivesScoring() {
+        let profile = CalibrationProfile(nearBaseline: -52, farBaseline: -78.5, noise: 3.25, midpoint: -64, slope: 5)
+        let scorer = PresenceScorer()
+        #expect(scorer.distance(smoothedRSSI: -64, profile: profile) == 0.5)
+        #expect(scorer.distance(smoothedRSSI: -52, profile: profile) > 0.9)
+        // The same sample scores differently under the display-only default.
+        #expect(scorer.distance(smoothedRSSI: -64, profile: .default) != 0.5)
+    }
+
     @Test func unknownSpellingsAreRejectedLoudly() {
         #expect(throws: FixtureError.self) { try line(#"{"kind":"sensor","t":0,"status":"degraded"}"#) }
         #expect(throws: FixtureError.self) { try line(#"{"kind":"sensor","t":0,"status":"off"}"#) }
