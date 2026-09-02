@@ -62,8 +62,16 @@ identifier.
 command-line order, and only those aliases reach the file. Every ten seconds a
 one-line progress report goes to stderr, so you can tell from across the room
 whether the device is still being heard. Ctrl-C stops early and still writes the
-fixture. The tool refuses to overwrite an existing `--out` path, and checks that
-before it starts scanning rather than after.
+fixture.
+
+**The filename is the scenario.** `--out …/desk-1m.jsonl` requires
+`--scenario desk-1m`. The replay scans `Tests/Fixtures/BLE` and matches
+`<scenario>.jsonl` to `<scenario>.expected.json`, so a capture saved under one name
+carrying another in its meta line can never be used, and the engine's metadata test
+rejects it. The tool refuses the mismatch, refuses an extension other than `.jsonl`,
+and refuses to overwrite an existing `--out` path. All three are checked before
+scanning starts rather than after, so a mistake costs you nothing but a retyped
+command instead of a whole run.
 
 ### Fixture format
 
