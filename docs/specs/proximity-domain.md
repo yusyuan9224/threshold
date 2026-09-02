@@ -302,6 +302,7 @@ enum CalibrationFailure: Sendable, Equatable { case insufficientSamples(phase: P
 
 ### 7.3 Gate 規則（`CalibrationValidator.gate(record, context)`）
 - 無 record → `.noProfile`
+- record 的 profile 等於 `CalibrationProfile.default`（display-only placeholder，slope 與自身 baseline 不自洽，真實 session 不可能產生）→ `.noProfile`（實作附註 2026-09-02：防止 placeholder 被持久化後 arm）
 - `record.device ≠ device` → `.deviceMismatch`；`record.macIdentity ≠ 現在的 macIdentity`（IOKit 公開 IOPlatformUUID）→ `.macMismatch`
 - `record.osMajorVersion ≠ 現在` → `.needsRevalidation(osMajorChanged: true)`
 - `CalibrationPolicy.maxProfileAge` 非 nil 且超齡 → `.needsRevalidation(osMajorChanged: false)`
