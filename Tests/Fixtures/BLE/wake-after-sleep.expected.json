@@ -1,0 +1,27 @@
+{
+  "final" : {
+    "evidence" : "measuredNear",
+    "presence" : "present"
+  },
+  "scenario" : "wake-after-sleep",
+  "transitions" : [
+    {
+      "at" : 6000,
+      "cause" : "confirmedNear",
+      "from" : "unknown(initial)",
+      "to" : "present"
+    },
+    {
+      "at" : 12000,
+      "cause" : "reset(systemWake)",
+      "from" : "present",
+      "to" : "unknown(reset:systemWake)"
+    },
+    {
+      "at" : 19000,
+      "cause" : "confirmedNear",
+      "from" : "unknown(reset:systemWake)",
+      "to" : "present"
+    }
+  ]
+}

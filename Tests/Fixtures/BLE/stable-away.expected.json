@@ -1,0 +1,15 @@
+{
+  "final" : {
+    "evidence" : "measuredFar",
+    "presence" : "away"
+  },
+  "scenario" : "stable-away",
+  "transitions" : [
+    {
+      "at" : 4000,
+      "cause" : "measuredFar",
+      "from" : "unknown(initial)",
+      "to" : "away"
+    }
+  ]
+}

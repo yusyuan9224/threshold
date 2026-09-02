@@ -1,0 +1,27 @@
+{
+  "final" : {
+    "evidence" : "measuredFar",
+    "presence" : "away"
+  },
+  "scenario" : "walking-away",
+  "transitions" : [
+    {
+      "at" : 6000,
+      "cause" : "confirmedNear",
+      "from" : "unknown(initial)",
+      "to" : "present"
+    },
+    {
+      "at" : 17000,
+      "cause" : "signalWeakened",
+      "from" : "present",
+      "to" : "departing"
+    },
+    {
+      "at" : 27000,
+      "cause" : "measuredFar",
+      "from" : "departing",
+      "to" : "away"
+    }
+  ]
+}

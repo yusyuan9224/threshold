@@ -1,0 +1,21 @@
+{
+  "final" : {
+    "evidence" : "none",
+    "presence" : "unknown(evidenceExpired)"
+  },
+  "scenario" : "sudden-silence-at-desk",
+  "transitions" : [
+    {
+      "at" : 6000,
+      "cause" : "confirmedNear",
+      "from" : "unknown(initial)",
+      "to" : "present"
+    },
+    {
+      "at" : 49000,
+      "cause" : "evidenceExpired",
+      "from" : "present",
+      "to" : "unknown(evidenceExpired)"
+    }
+  ]
+}
