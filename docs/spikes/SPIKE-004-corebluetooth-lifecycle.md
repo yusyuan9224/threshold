@@ -71,11 +71,25 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 - 限制：75 s，不是規格的 10 min；process 為前景 CLI（非 App Nap 情境）。
 - 檔案：`Tools/spikes/out/spike004-displaysleep.jsonl`、`spike004-cmds.jsonl`（gitignored）。
 
+### 第三批：display sleep 136 s（2026-09-02 14:51 UTC，自動化執行，原訂 10 min）
+
+`ble-observe 600` + `screen-state 605` 同時記錄；第 2 s `pmset displaysleepnow`。顯示器於 t 7 ms 睡眠、**t 136.6 s 由使用者回座喚醒並解鎖**（137.3 s `com.apple.screenIsUnlocked`），故 display sleep 實際 136 s，之後 464 s 為使用者正常使用。
+
+| 指標 | 值 |
+|---|---|
+| `centralManagerDidUpdateState` | 只有啟動時 `.poweredOn`（26 ms）；display sleep／wake／unlock 全程無 state 事件 |
+| tick 60/60 | `isScanning == true`、`.poweredOn` |
+| 每 10 s 廣播筆數 | min 137、中位數 166、max 777（含使用者回座後）；睡眠中的 13 個視窗與清醒視窗無差異 |
+| 唯一 identifier | 62 |
+| 有名稱裝置 | 5 個在 60/60 視窗有樣本（每 10 s 中位數 8–61 筆）；1 個間歇（18/60） |
+
+檔案：`Tools/spikes/out/spike004-10min.jsonl`、`spike004-10min-screen.jsonl`（gitignored）。
+
 ### Not yet measured
 
 對應本文件的實驗章節，以下**全部未跑**：
 
-- display sleep **10 min** 下掃描是否持續（已有 75 s 證據：持續、樣本率不變）
+- display sleep **10 min** 下掃描是否持續（已有 75 s + 136 s 兩段證據：持續、樣本率不變、無 state 事件；10 min 連續段因使用者回座中斷）
 - system sleep 10 min（合蓋／`pmset sleepnow`）前後的狀態序列，是否出現 `.resetting`
 - wake 後是否需要重呼叫 `scanForPeripherals`、wake 後首筆 observation 延遲
 - Bluetooth off→on

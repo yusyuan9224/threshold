@@ -1,5 +1,5 @@
 # SPIKE-008 Input Idle Detection
-Status: PARTIAL（2026-09-02：首次嘗試工具缺陷無效；探針修正後有一筆觀察）　Priority: 2（silence policy 前）
+Status: CONDITIONAL GO（2026-09-02；條件：用 `.hidSystemState`，鎖定時回 nil；screen saver／fast user switching／synthetic event 未測）　Priority: 2（silence policy 前）
 
 ## Question
 `CGEventSource.secondsSinceLastEventType(_:eventType:)` 用哪個 `stateID`（`.hidSystemState`／`.combinedSessionState`）、是否計入 synthetic event、在 lock screen／screen saver／display sleep／fast user switching 下回傳什麼、是否真的不需要 Accessibility？
@@ -65,3 +65,22 @@ screen-run1（120 s，24 個樣本）與 screen-run2（75 s，15 個樣本）中
 
 **發現**：`combinedSessionState` 會被 `IOPMAssertionDeclareUserActivity` 重置——那正是本產品 `MacOSWakeController` 要呼叫的 API。若 `InputActivityProviding` 用 `combinedSessionState`，App 自己的 wake 會把 idle 歸零，污染 silence lock 的 supporting evidence。`hidSystemState` 反映真實 HID 閒置，且在鎖定畫面下仍可讀（免權限）。
 **決定（暫定）**：`MacOSInputActivityProvider` 使用 `.hidSystemState`。仍未測：打字／滑鼠時是否即時歸零、synthetic `CGEvent` 是否計入、screen saver／fast user switching 下的值——這些需要使用者在場，狀態維持 PARTIAL。
+
+### 使用者回座的被動觀察（2026-09-02 14:51–15:01 UTC，`spike004-10min-screen.jsonl`）
+
+探針修正後、每 500 ms 輪詢兩種 stateID，橫跨「鎖定＋顯示器睡眠 → 使用者喚醒並解鎖 → 正常使用 464 s」。CLI 為一般使用者權限，**未出現 Accessibility 或任何權限對話**。
+
+| 時刻 | 事件 | `.hidSystemState` | `.combinedSessionState` |
+|---|---|---|---|
+| 0–136 s | 鎖定、顯示器睡眠、無人 | 1116 → 1246 s（單調遞增，與 IOHIDSystem 一致） | 279 → 409 s（起點被先前的 `IOPMAssertionDeclareUserActivity` 重置） |
+| 136.6 s | 使用者按鍵喚醒顯示器；136.8 s secure input 結束；137.3 s 解鎖 | **1247.9 s（未歸零）** | **0.3 s（歸零）** |
+| 141.0 s 起 | session 已解鎖、使用者操作 | 0.0 | 0.0 |
+| 141–605 s | 正常使用（打字／滑鼠） | 兩者逐筆完全相同；15 次歸零事件；閒置時以 1 s/s 遞增（例如 590 s 時 67.5） | 同左 |
+
+**讀法**
+- 解鎖後（`SessionState == .active`、`ScreenState == .unlocked`）兩個 stateID 對真實 HID 輸入**語意一致、即時歸零、免權限**。這是 silence lock 需要的情境。
+- 鎖定畫面（secure input）下的按鍵**不會**重置 `.hidSystemState`，但會重置 `.combinedSessionState`；加上前一節「`combinedSessionState` 會被 `IOPMAssertionDeclareUserActivity` 重置」，`.combinedSessionState` 不可用（App 自己的 wake 與鎖定畫面輸入都會污染它）。
+- `.hidSystemState` 在鎖定畫面下不反映輸入 → provider 在 `screen != .unlocked` 時回 `nil`（本來就是規格的保守方向）。
+
+### 判定
+**CONDITIONAL GO**：`MacOSInputActivityProvider` 使用 `.hidSystemState`、`kCGAnyInputEventType`，只在 session active 且 screen unlocked 時回值，否則 `nil`；`PolicySettings.silenceLock` 可保留 `.afterTimeout` 預設。未測（列為條件外的已知缺口）：synthetic `CGEvent`（本產品不產生任何 synthetic 事件，boundary check 禁止）、screen saver、fast user switching。

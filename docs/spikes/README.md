@@ -8,7 +8,7 @@
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
 | SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（2026-09-02） |
-| SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | PARTIAL（2026-09-02，探針修正後一筆觀察） |
+| SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | CONDITIONAL GO（2026-09-02；`.hidSystemState`，鎖定時 nil） |
 | SPIKE-003 | 喚醒行為與 system sleep 邊界 | MVP 4 | 3（MVP 3 期間） | PARTIAL（2026-09-02，display sleep 3/3） |
 | SPIKE-005 | Apple Watch 解鎖互動 | MVP 4 | 3 | NOT RUN |
 | SPIKE-006 | Touch ID 互動 | MVP 4 | 3 | NOT RUN |
