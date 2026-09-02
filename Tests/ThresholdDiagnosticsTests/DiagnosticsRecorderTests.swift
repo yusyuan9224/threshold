@@ -55,6 +55,30 @@ import Foundation
         #expect(decoded.events[0].fields["confidence"] == .double(0.87))
     }
 
+    @Test func snapshotKeepsTheNewestCapacityEventsInOrderAfterOverflow() async {
+        let capacity = 8
+        let recorder = DiagnosticsRecorder(capacity: capacity, appVersion: "1.0.0-test")
+        for i in 0..<(capacity + 5) {
+            await recorder.record(category: .systemLifecycle, message: "event-\(i)", monotonicNanoseconds: Int64(i))
+        }
+        let snapshot = await recorder.snapshot(limit: capacity)
+        #expect(snapshot.events.count == capacity)
+        #expect(snapshot.droppedCount == 5)
+        #expect(snapshot.events.map(\.message) == (5..<13).map { "event-\($0)" })
+        #expect(snapshot.events.map(\.sequence) == Array(5..<13).map(UInt64.init))
+    }
+
+    @Test func exportKeepsTheNewestCapacityEventsInOrderAfterOverflow() async throws {
+        let recorder = DiagnosticsRecorder(capacity: 4, appVersion: "1.0.0-test")
+        for i in 0..<9 {
+            await recorder.record(category: .transition, message: "event-\(i)", monotonicNanoseconds: Int64(i))
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(DiagnosticsExportEnvelope.self, from: try await recorder.export())
+        #expect(decoded.events.map(\.message) == ["event-5", "event-6", "event-7", "event-8"])
+    }
+
     @Test func recordRedactsMessageBeforeItReachesStorage() async throws {
         let recorder = DiagnosticsRecorder(capacity: 10, appVersion: "1.0.0-test")
         let raw = "Someone's iPhone 123E4567-E89B-12D3-A456-426614174000 AA:BB:CC:DD:EE:FF host.local"

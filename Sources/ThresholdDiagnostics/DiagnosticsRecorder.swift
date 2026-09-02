@@ -30,12 +30,11 @@ struct DiagnosticsExportEnvelope: Codable {
 /// An actor because diagnostics events can arrive at high frequency from many concurrent
 /// producers and must never be routed through `@MainActor` to get there (architecture.md §4.1).
 public actor DiagnosticsRecorder {
-    private let capacity: Int
     private let appVersion: String
     private let logger: Logger?
     private let clock: @Sendable () -> Date
 
-    private var events: [DiagnosticEvent] = []
+    private var events: RingBuffer<DiagnosticEvent>
     private var nextSequence: UInt64 = 0
     private var droppedCount: Int = 0
     private var totalRecorded: UInt64 = 0
@@ -47,17 +46,15 @@ public actor DiagnosticsRecorder {
         logger: Logger? = nil,
         clock: @escaping @Sendable () -> Date = Date.init
     ) {
-        precondition(capacity > 0, "capacity must be positive")
-        self.capacity = capacity
         self.appVersion = appVersion
         self.logger = logger
         self.clock = clock
-        self.events.reserveCapacity(capacity)
+        self.events = RingBuffer(capacity: capacity)
     }
 
     /// Records one event: assigns `sequence` and wall clock, runs both the free-form `message` and
-    /// `fields` through `PrivacyFilter`, appends to the ring buffer (dropping the oldest entry if at
-    /// capacity), and optionally logs a summary via `os.Logger`.
+    /// `fields` through `PrivacyFilter`, appends to the ring buffer (overwriting the oldest entry if
+    /// at capacity), and optionally logs a summary via `os.Logger`.
     ///
     /// Only `category` is logged `.public`: it comes from a closed enum. The message is caller-authored
     /// text and stays `.private` even after redaction, so an unanticipated sensitive shape cannot reach
@@ -84,9 +81,7 @@ public actor DiagnosticsRecorder {
             fields: filteredFields
         )
 
-        events.append(event)
-        if events.count > capacity {
-            events.removeFirst()
+        if events.append(event) {
             droppedCount += 1
         }
 
@@ -95,9 +90,8 @@ public actor DiagnosticsRecorder {
 
     /// The most recent `limit` events, newest last.
     public func snapshot(limit: Int = 200) -> DiagnosticsSnapshot {
-        let recent = limit > 0 ? events.suffix(limit) : []
-        return DiagnosticsSnapshot(
-            events: Array(recent),
+        DiagnosticsSnapshot(
+            events: events.suffix(limit),
             droppedCount: droppedCount,
             totalRecorded: totalRecorded,
             generatedAt: clock()
@@ -112,7 +106,7 @@ public actor DiagnosticsRecorder {
     /// be attached to an issue report, so a leak here is a leak off the machine; refusing to export
     /// is always the better failure.
     public func export() throws -> Data {
-        let envelope = DiagnosticsExportEnvelope(format: "threshold-diagnostics/1", app: appVersion, events: events)
+        let envelope = DiagnosticsExportEnvelope(format: "threshold-diagnostics/1", app: appVersion, events: events.elements)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(envelope)
@@ -130,7 +124,9 @@ public actor DiagnosticsRecorder {
     /// which filters. Kept here rather than behind a `#if DEBUG` so the shipped build compiles the
     /// same code the tests exercise; `internal` already keeps it out of every other target.
     func appendUnfilteredForTesting(_ event: DiagnosticEvent) {
-        events.append(event)
+        if events.append(event) {
+            droppedCount += 1
+        }
         totalRecorded += 1
     }
 }
