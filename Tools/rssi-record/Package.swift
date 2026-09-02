@@ -22,7 +22,14 @@ let package = Package(
         .executable(name: "rssi-record", targets: ["rssi-record"]),
     ],
     dependencies: [
-        .package(path: "../.."),
+        // `name:` is load-bearing here, not decoration. SwiftPM derives a path
+        // dependency's identity from the *last component of the directory path*,
+        // not from the `name:` in that dependency's own manifest. Without this,
+        // the `package: "Threshold"` references below resolve only when the
+        // checkout directory happens to be called `threshold` — so the tool built
+        // in the main checkout and failed in every git worktree, and would have
+        // failed in any clone into a differently named directory.
+        .package(name: "Threshold", path: "../.."),
     ],
     targets: [
         .executableTarget(
