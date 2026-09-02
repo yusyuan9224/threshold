@@ -21,7 +21,9 @@ SPIKE-001/008 (+ one display-sleep sample touching SPIKE-003/007). Docs still sa
   14:52 T2 diagnostics merged (1c9d487) after BLOCK→fix→re-review. main: 262 tests, boundaries OK.
 - T1 spike evidence written (dd36b21, faa882e, ffdf2ef): SPIKE-009/004/001/007/003/008 PARTIAL with data;
   autonomous runs added SPIKE-003 (3/3 wake) and SPIKE-004 (display-sleep scan continuity).
-- T6 clock committed (aa8cc9f); providers/controllers/stores in progress. T7 engine in progress. T10 rssi-record in progress.
+- 15:05 T6 system merged (d43423f): clocks, providers, controllers, stores. 15:12 T7 engine merged + T10 rssi-record
+  (104fbde). main: 456 tests. Engine follow-up (T-15 coverage of rows #6/#7) in progress on feat/domain-engine.
+- T8 Coordinator in progress (feat/runtime-coordinator). T9 App in progress (feat/app, ThresholdAppKit library + tests).
 
 ## Task graph
 ```text
