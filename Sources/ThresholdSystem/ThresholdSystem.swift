@@ -1,3 +1,8 @@
 import ThresholdDomain
-/// Module marker. Providers/controllers land in MVP 3/4 (docs/specs/system-integration.md).
+
+/// Module marker.
+///
+/// The target itself is organised as `Clock/`, `Providers/`, `Controllers/` and `Stores/`; every
+/// capability is a protocol, a macOS implementation and a Fake
+/// (docs/specs/system-integration.md).
 public enum ThresholdSystemModule { public static let name = "ThresholdSystem" }
