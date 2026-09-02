@@ -1,4 +1,5 @@
 import Foundation
+import ThresholdDomain
 
 struct ToolError: Error, CustomStringConvertible {
     let description: String
@@ -20,9 +21,17 @@ USAGE
                      --device-class iphone|watch|beacon
                      --seconds <n>
                      --out <file.jsonl>
+                     [--profile <calibration.json>]
       Record an ANONYMISED fixture. Identifiers are mapped to device-A,
       device-B, ... in the order they appear on the command line and never
       reach the output file.
+
+      --profile embeds the calibration the recording was made under, as a
+      JSON object with nearBaseline, farBaseline, noise, midpoint and slope.
+      The replay arms its calibration gate with it. Without one the capture
+      still parses and is useful for parse and stability checks, but it must
+      not be given a golden: presence scoring is relative to midpoint and
+      slope, so the numbers would be meaningless.
 
 SCENARIO NAMES (SPIKE-009 §C and the fixture set in testing.md §3)
   desk-1m  pocket-3m  next-room-8m  device-locked-idle-30m
@@ -40,6 +49,14 @@ struct RecordOptions {
     let deviceClass: String
     let seconds: Int
     let outputPath: String
+    /// The calibration the recording was made under, from `--profile`.
+    ///
+    /// Optional because a capture is worth taking before anyone has calibrated the
+    /// device: it still works as a parse and stability fixture. But presence scoring
+    /// is entirely relative to `midpoint` and `slope`, so a capture recorded without
+    /// one must not be given a golden — the replay would fall back to
+    /// `CalibrationProfile.default` and pin numbers that mean nothing.
+    let profile: CalibrationProfile?
 
     static let macClasses = ["laptop", "desktop"]
     static let deviceClasses = ["iphone", "watch", "beacon"]
@@ -54,6 +71,7 @@ struct RecordOptions {
         var deviceClass: String?
         var seconds: String?
         var outputPath: String?
+        var profilePath: String?
 
         var index = arguments.startIndex
         while index < arguments.endIndex {
@@ -68,6 +86,7 @@ struct RecordOptions {
             case "--device-class": deviceClass = value
             case "--seconds": seconds = value
             case "--out": outputPath = value
+            case "--profile": profilePath = value
             default: throw ToolError("unknown option \(flag)")
             }
             index += 2
@@ -87,8 +106,49 @@ struct RecordOptions {
             macClass: try oneOf(macClass, macClasses, flag: "--mac-class"),
             deviceClass: try oneOf(deviceClass, deviceClasses, flag: "--device-class"),
             seconds: try validSeconds(seconds),
-            outputPath: try require(outputPath, flag: "--out")
+            outputPath: try require(outputPath, flag: "--out"),
+            profile: try profilePath.map(loadProfile)
         )
+    }
+
+    /// Reads a `CalibrationProfile` as JSON: the five fields, nothing else.
+    ///
+    /// The checks here are sanity checks on a hand-edited file, not a re-run of
+    /// `CalibrationValidator` — the profile comes from a real calibration session and
+    /// this tool has no business re-deriving it. They catch the three mistakes that
+    /// would silently produce a worthless golden.
+    private static func loadProfile(_ path: String) throws -> CalibrationProfile {
+        let data: Data
+        do {
+            data = try Data(contentsOf: URL(fileURLWithPath: path))
+        } catch {
+            throw ToolError("--profile \(path) could not be read: \(error.localizedDescription)")
+        }
+
+        let profile: CalibrationProfile
+        do {
+            profile = try JSONDecoder().decode(CalibrationProfile.self, from: data)
+        } catch {
+            throw ToolError(
+                """
+                --profile \(path) is not a calibration profile. Expected an object with \
+                nearBaseline, farBaseline, noise, midpoint and slope, all numbers.
+                """
+            )
+        }
+
+        // `CalibrationProfile.default` is display-only and by its own contract never
+        // appears inside `CalibrationGate.armed`. A fixture carrying it would arm the
+        // replay with a profile no real session could have produced.
+        guard profile != .default else {
+            throw ToolError("--profile is CalibrationProfile.default, which is a placeholder, not a calibration")
+        }
+        guard profile.nearBaseline > profile.farBaseline else {
+            throw ToolError("--profile nearBaseline must be stronger (less negative) than farBaseline")
+        }
+        guard profile.slope > 0 else { throw ToolError("--profile slope must be greater than zero") }
+        guard profile.noise >= 0 else { throw ToolError("--profile noise must not be negative") }
+        return profile
     }
 
     /// Uppercases and re-renders through `UUID` so the value matches the `DeviceID`

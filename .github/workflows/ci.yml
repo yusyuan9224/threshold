@@ -16,3 +16,7 @@ jobs:
         run: swift build -v
       - name: Test
         run: swift test
+      - name: App bundle
+        run: scripts/make-app-bundle.sh debug
+      - name: Tools build
+        run: swift build --package-path Tools/rssi-record
