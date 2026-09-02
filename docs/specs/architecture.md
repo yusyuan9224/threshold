@@ -8,7 +8,7 @@ Status: Approved（brainstorming sign-off 2026-09-02）
 
 優先順序固定：`Security > Correctness > Reliability > Compatibility > UX > Feature Count`。
 
-## 2. 模組切分：一個 SwiftPM package、多個 target、一個 Xcode app project
+## 2. 模組切分：一個 SwiftPM package、多個 target、App 為 SwiftPM executable（ADR-011）
 
 ### 2.1 為什麼不是多個 package
 沒有第二個消費者；多 package 只帶來多份 `Package.resolved` 與跨 package 兩步 commit 的成本。依賴方向由單一 `Package.swift` 的 target dependencies 強制，效果相同。
@@ -21,7 +21,8 @@ Status: Approved（brainstorming sign-off 2026-09-02）
 | `ThresholdBluetooth` | CoreBluetooth → 三通道 AsyncStream；掃描生命週期；`DeviceRegistry` | Domain（輸出型別就是 `BLEObservation`／`SensorStatus`）、Foundation、CoreBluetooth | System、Diagnostics、App | `BLEScanning`、`CoreBluetoothScanner`、`FakeScanner`、`DeviceRegistry` | delegate → stream 橋接、queue confinement、重掃邏輯 |
 | `ThresholdSystem` | 所有 macOS 接觸面：providers（Screen／Session／Power／InputActivity）與 controllers（Lock／Wake／LoginItem）、persistence stores | Domain（產出 `ScreenState` 等、接受 `PolicyAction`）、Foundation、AppKit、IOKit、CoreGraphics、ServiceManagement | Bluetooth、Diagnostics、App | 每個能力一組 `protocol + macOS 實作 + Fake` | 未文件化訊號的讀取細節只在這裡 |
 | `ThresholdDiagnostics` | `DiagnosticEvent` schema、`DiagnosticsRecorder` actor（環形緩衝、隱私過濾、匯出） | Foundation、os.log | 所有其他 target | `DiagnosticEvent`、`DiagnosticsRecorder`、`DiagnosticsSnapshot` | 去識別化規則 |
-| `Threshold`（App，Xcode target） | `AppContainer`（composition root）、`Coordinator` actor、SwiftUI UI、`DiagnosticsRecorder` 的訂閱與轉換 | 全部 | — | — | — |
+| `ThresholdRuntime` | `Coordinator` actor、`DiagnosticsRecorder` 訂閱與轉換、`CoordinatorInput`／`CoordinatorEvent` | Domain、Bluetooth、System、Diagnostics | App | `Coordinator`、`CoordinatorEvent` | 排程、ledger 回流 |
+| `ThresholdApp`（SwiftPM executable） | `AppContainer`（composition root）、SwiftUI UI | 全部 | — | — | — |
 
 `ThresholdSecurity` 是 **reserved target**：MVP 0–5 沒有 consumer，MVP 6 且 SPIKE-001／002 GO 才建立。介面見 `security.md`。
 

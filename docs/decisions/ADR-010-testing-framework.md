@@ -11,3 +11,6 @@ Status: Accepted (2026-09-02)
 
 ## Consequences
 本機可立即進入 TDD；App 層驗證延後到 Xcode 安裝。
+
+## Amendment 2026-09-02 (MVP 0 evidence)
+`swift test` under Command Line Tools (Swift 6.2) runs **both XCTest and Swift Testing** (Testing Library 1902 reported). Decision updated: **Swift Testing is the primary framework** from MVP 0; XCTest only where an API requires it. Evidence: `Tests/ThresholdDomainTests/MonotonicInstantTests.swift` executes under `swift test` on this machine.
