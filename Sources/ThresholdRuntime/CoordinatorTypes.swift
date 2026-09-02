@@ -76,6 +76,11 @@ public struct PolicyEvaluation: Sendable, Equatable {
 /// Domain values, not diagnostics records: the Domain does not know `ThresholdDiagnostics` exists,
 /// and `DiagnosticsBridge` is what turns these into `DiagnosticEvent`s (ADR-007).
 public enum CoordinatorEvent: Sendable, Equatable {
+    /// Coalesced at the source (MEDIUM-2): the Coordinator publishes this only when the snapshot
+    /// differs from the last one it published, not once per input. A silent run can produce
+    /// thousands of no-op observations; none of them reach this case. Read `Coordinator.events`'s
+    /// doc comment for why that keeps the shared, unbounded stream from being dominated by this
+    /// one high-frequency producer.
     case snapshotUpdated(ProximitySnapshot)
     case transition(ProximityTransition)
     case policyEvaluated(PolicyEvaluation)

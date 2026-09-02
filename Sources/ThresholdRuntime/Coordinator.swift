@@ -73,7 +73,20 @@ public actor Coordinator {
     /// (security.md §2.6).
     var epoch: UInt64 = 0
     var dispatchEpoch: [ActionID: UInt64] = [:]
+    /// The last `ProximitySnapshot` actually published on `events`, kept so a run of inputs that
+    /// settles back to the same belief does not re-publish it (see `emitSnapshotUpdate`).
+    var lastEmittedSnapshot: ProximitySnapshot?
 
+    /// The Coordinator's outbound channel (architecture.md §5.1).
+    ///
+    /// `.unbounded`, deliberately: `actionDispatched`, `actionAcknowledged`, `transition`,
+    /// `policyEvaluated` and `lifecycle` are an audit trail, and a bounded buffer that drops the
+    /// oldest element under backpressure (`.bufferingNewest`) can silently drop one of these —
+    /// exactly the kind of loss `DiagnosticsBridge` exists to prevent. A single flood-prone
+    /// producer, `snapshotUpdated`, shares the same channel; rather than give it its own
+    /// bounded stream, it is coalesced at the source instead (`emitSnapshotUpdate`), so an
+    /// unbounded buffer here is bounded in practice by how often the engine's belief actually
+    /// changes, not by how often an input arrives.
     public nonisolated let events: AsyncStream<CoordinatorEvent>
     private nonisolated let continuation: AsyncStream<CoordinatorEvent>.Continuation
 
@@ -116,7 +129,7 @@ public actor Coordinator {
         self.power = power.current
 
         let (stream, continuation) = AsyncStream<CoordinatorEvent>.makeStream(
-            bufferingPolicy: .bufferingNewest(1024)
+            bufferingPolicy: .unbounded
         )
         self.events = stream
         self.continuation = continuation
@@ -204,7 +217,7 @@ public actor Coordinator {
         case .calibrationChanged(let updated):
             gate = updated
             engine.update(gate: updated)
-            emit(.snapshotUpdated(engine.snapshot))
+            emitSnapshotUpdate()
             evaluate(trigger: .calibration)
 
         case .devicesChanged(let updated):
@@ -220,17 +233,35 @@ public actor Coordinator {
 
     // MARK: - Input plumbing
 
-    /// Emits the transitions, publishes the settled snapshot, then either re-runs policy or just
-    /// re-arms the deadline. Every engine-facing input funnels through here so the snapshot a
-    /// subscriber sees is always the one policy was evaluated against.
+    /// Emits the transitions, publishes the settled snapshot when it is newsworthy, then either
+    /// re-runs policy or just re-arms the deadline. Every engine-facing input funnels through here
+    /// so the snapshot a subscriber sees is always the one policy was evaluated against.
+    ///
+    /// A plain observation that moves nothing (`always: false`, no transitions) is by far the most
+    /// common input — a silent run can produce thousands of them — and does not even attempt a
+    /// `snapshotUpdated` publish: it neither transitioned nor triggered policy, so there is nothing
+    /// newsworthy about it. Everything else (`always: true`, or a real transition) goes through
+    /// `emitSnapshotUpdate`, which still only publishes when the snapshot actually differs from the
+    /// last one published (MEDIUM-2).
     private func apply(_ transitions: [ProximityTransition], trigger: PolicyTrigger, always: Bool) {
         for transition in transitions { emit(.transition(transition)) }
-        emit(.snapshotUpdated(engine.snapshot))
         if always || !transitions.isEmpty {
+            emitSnapshotUpdate()
             evaluate(trigger: trigger)
         } else {
             rescheduleDeadline(policyDeadline: lastPolicyDeadline)
         }
+    }
+
+    /// Publishes `snapshotUpdated` only when the engine's snapshot differs from the last one
+    /// published (MEDIUM-2). `events` is unbounded, so this is not about avoiding drops — it is
+    /// about not making every subscriber re-derive the same belief thousands of times over an
+    /// otherwise uneventful run.
+    private func emitSnapshotUpdate() {
+        let current = engine.snapshot
+        guard current != lastEmittedSnapshot else { return }
+        lastEmittedSnapshot = current
+        emit(.snapshotUpdated(current))
     }
 
     private func handle(lifecycle event: LifecycleEvent) {
