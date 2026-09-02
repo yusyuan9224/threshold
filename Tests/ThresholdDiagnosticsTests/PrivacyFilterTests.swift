@@ -46,16 +46,74 @@ import Testing
         #expect(filtered["redacted"] == .bool(true))
     }
 
-    @Test func aliasesIdentifierSuffixedKeysConsistently() {
+    @Test func aliasesDeviceRelatedKeysConsistently() {
         var deviceAlias = DeviceAlias()
         let first = PrivacyFilter.apply(to: ["deviceID": .string("AA:BB:CC:DD:EE:FF")], deviceAlias: &deviceAlias)
-        let second = PrivacyFilter.apply(to: ["peerIdentifier": .string("AA:BB:CC:DD:EE:FF")], deviceAlias: &deviceAlias)
-        guard case .string(let firstAlias)? = first["deviceID"], case .string(let secondAlias)? = second["peerIdentifier"] else {
+        let second = PrivacyFilter.apply(to: ["peripheralIdentifier": .string("AA:BB:CC:DD:EE:FF")], deviceAlias: &deviceAlias)
+        guard case .string(let firstAlias)? = first["deviceID"],
+              case .string(let secondAlias)? = second["peripheralIdentifier"] else {
             Issue.record("expected aliased string values")
             return
         }
         #expect(firstAlias == secondAlias)
         #expect(firstAlias.hasPrefix("device-"))
+    }
+
+    /// ADR-007 replaces device identity with a stable short alias — a device *name* ("Someone's
+    /// iPhone") identifies the device just as well as its address, so it is aliased, not passed on.
+    @Test func aliasesDeviceAndPeripheralNameKeys() {
+        var deviceAlias = DeviceAlias()
+        let filtered = PrivacyFilter.apply(
+            to: ["deviceName": .string("Someone's iPhone"), "peripheralName": .string("Someone's iPad")],
+            deviceAlias: &deviceAlias
+        )
+        guard case .string(let deviceValue)? = filtered["deviceName"],
+              case .string(let peripheralValue)? = filtered["peripheralName"] else {
+            Issue.record("expected aliased string values")
+            return
+        }
+        #expect(deviceValue.hasPrefix("device-"))
+        #expect(peripheralValue.hasPrefix("device-"))
+        #expect(deviceValue != peripheralValue)
+    }
+
+    @Test(arguments: ["localName", "hostname", "host", "serialNumber", "userName", "appleID", "accountLabel"])
+    func redactsNameShapedKeys(key: String) {
+        var deviceAlias = DeviceAlias()
+        let filtered = PrivacyFilter.apply(to: [key: .string("Someone")], deviceAlias: &deviceAlias)
+        #expect(filtered[key] == nil)
+        #expect(filtered["redacted"] == .bool(true))
+    }
+
+    /// ADR-006 lifecycle IDs are correlation handles, not device identity: aliasing them would make
+    /// two different actions look like the same device.
+    @Test(arguments: ["actionIdentifier", "episodeIdentifier", "transitionIdentifier"])
+    func neverAliasesLifecycleIdentifiers(key: String) {
+        var deviceAlias = DeviceAlias()
+        let filtered = PrivacyFilter.apply(to: [key: .string("a1b2")], deviceAlias: &deviceAlias)
+        #expect(filtered[key] == .string("a1b2"))
+        #expect(filtered["redacted"] == nil)
+    }
+
+    @Test func redactsLocalHostnameShapedValues() {
+        var deviceAlias = DeviceAlias()
+        let filtered = PrivacyFilter.apply(to: ["note": .string("resolved host.local")], deviceAlias: &deviceAlias)
+        #expect(filtered["note"] == nil)
+        #expect(filtered["redacted"] == .bool(true))
+    }
+
+    @Test func redactsOwnerNamedDeviceValues() {
+        var deviceAlias = DeviceAlias()
+        let filtered = PrivacyFilter.apply(to: ["note": .string("saw Someone's iPhone")], deviceAlias: &deviceAlias)
+        #expect(filtered["note"] == nil)
+        #expect(filtered["redacted"] == .bool(true))
+    }
+
+    @Test func redactsHomePathValues() {
+        var deviceAlias = DeviceAlias()
+        let filtered = PrivacyFilter.apply(to: ["note": .string("/Users/yusyuan/x.json")], deviceAlias: &deviceAlias)
+        #expect(filtered["note"] == nil)
+        #expect(filtered["redacted"] == .bool(true))
     }
 
     @Test func aliasesDifferentRawIdentifiersDifferently() {
