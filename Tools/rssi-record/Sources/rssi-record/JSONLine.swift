@@ -23,6 +23,19 @@ enum JSONLine {
 
     static func bool(_ value: Bool) -> String { value ? "true" : "false" }
 
+    /// A measured value written the way a person would write it: `-55`, not
+    /// `-55.0000`, and `4.5` rather than `4.5000`. Used for the calibration profile,
+    /// whose numbers are read and hand-edited far more often than the run metrics.
+    /// Still fixed-point, so no exponent form can reach the file.
+    static func number(_ value: Double) -> String {
+        guard value.isFinite else { return "0" }
+        if value == value.rounded(), abs(value) < 1e15 { return String(Int64(value)) }
+        var rendered = fixed(value, places: 4)
+        while rendered.hasSuffix("0") { rendered.removeLast() }
+        if rendered.hasSuffix(".") { rendered.removeLast() }
+        return rendered
+    }
+
     /// Fixed-point rather than `String(describing:)`: no exponent form, no
     /// locale-dependent separator, and a stable number of digits across runs.
     static func fixed(_ value: Double, places: Int) -> String {

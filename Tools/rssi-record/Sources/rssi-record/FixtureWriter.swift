@@ -1,4 +1,5 @@
 import Foundation
+import ThresholdDomain
 
 /// Assembles the JSONL fixture: meta line, event lines, summary line.
 ///
@@ -10,7 +11,7 @@ enum FixtureWriter {
     static let recorderVersion = "rssi-record 0.1"
 
     static func metaLine(_ options: RecordOptions, durationMs: Int64) -> String {
-        JSONLine.object([
+        var pairs: [(String, String)] = [
             ("kind", JSONLine.str("meta")),
             ("macClass", JSONLine.str(options.macClass)),
             ("deviceClass", JSONLine.str(options.deviceClass)),
@@ -18,6 +19,24 @@ enum FixtureWriter {
             ("recorder", JSONLine.str(recorderVersion)),
             ("anonymized", JSONLine.bool(true)),
             ("durationMs", JSONLine.int(durationMs)),
+        ]
+        // Omitted entirely when absent rather than written as null: the replay's
+        // `profile` is optional, and a missing key is what tells it to fall back.
+        if let profile = options.profile {
+            pairs.append(("profile", profileObject(profile)))
+        }
+        return JSONLine.object(pairs)
+    }
+
+    /// The calibration the recording was made under. The replay arms its calibration
+    /// gate with this, so it travels with the fixture instead of living in test code.
+    private static func profileObject(_ profile: CalibrationProfile) -> String {
+        JSONLine.object([
+            ("nearBaseline", JSONLine.number(profile.nearBaseline)),
+            ("farBaseline", JSONLine.number(profile.farBaseline)),
+            ("noise", JSONLine.number(profile.noise)),
+            ("midpoint", JSONLine.number(profile.midpoint)),
+            ("slope", JSONLine.number(profile.slope)),
         ])
     }
 
