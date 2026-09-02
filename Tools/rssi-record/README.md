@@ -51,8 +51,12 @@ identifier.
   --mac-class laptop \
   --device-class iphone \
   --seconds 1200 \
-  --out ../../Tests/Fixtures/BLE/desk-1m.jsonl
+  --out ../../Tests/Fixtures/BLE/desk-1m.jsonl \
+  --profile my-iphone-calibration.json
 ```
+
+`--profile` is optional but decides whether the capture can carry a golden — see
+[Calibration profile](#calibration-profile).
 
 `--device` may be repeated; the devices are mapped to `device-A`, `device-B`, … in
 command-line order, and only those aliases reach the file. Every ten seconds a
@@ -67,7 +71,8 @@ JSONL, per `docs/specs/testing.md` §3. Line one is metadata, then one line per
 `EngineInput` with `t` in milliseconds since `t0`, then a summary line.
 
 ```jsonc
-{"kind":"meta","macClass":"laptop","deviceClass":"iphone","scenario":"desk-1m","recorder":"rssi-record 0.1","anonymized":true,"durationMs":1200431}
+{"kind":"meta","macClass":"laptop","deviceClass":"iphone","scenario":"desk-1m","recorder":"rssi-record 0.1","anonymized":true,"durationMs":1200431,
+ "profile":{"nearBaseline":-52,"farBaseline":-78.5,"noise":3.25,"midpoint":-64,"slope":5}}
 {"kind":"sensor","t":24,"status":"available"}
 {"kind":"observation","t":75,"device":"device-A","rssi":-54}
 {"kind":"sensor","t":840112,"status":"degraded.scanInterrupted"}
@@ -91,6 +96,35 @@ JSONL, per `docs/specs/testing.md` §3. Line one is metadata, then one line per
     run**. A device first heard four minutes in was silent for four minutes.
   - `medianRSSI`, `madRSSI` — lower median (`sorted[count / 2]`) and the median
     absolute deviation from it, in dB.
+- A recording always opens with a `sensor` line before any observation. The presence
+  axis only advances while sensor health is healthy and the engine starts in
+  `initializing`, so observations before the first `available` line update the tracks
+  but can never move presence. This holds by construction: the scanner cannot start
+  scanning until CoreBluetooth reaches `poweredOn`, and reaching it is what produces
+  the line.
+
+### Calibration profile
+
+`--profile` takes a JSON object with the five `CalibrationProfile` fields:
+
+```json
+{"nearBaseline":-52,"farBaseline":-78.5,"noise":3.25,"midpoint":-64,"slope":5}
+```
+
+It is copied into the meta line as `profile`, and the replay arms its calibration
+gate with it. Presence scoring is entirely relative to `midpoint` and `slope`, so:
+
+- **With a profile**, the capture can carry a `.expected.json` golden.
+- **Without one**, the capture is still worth taking — it works as a parse and
+  stability fixture — but the replay falls back to `CalibrationProfile.default` and
+  any golden built on it would pin meaningless numbers. Do not add one until the
+  profile is filled in.
+
+The tool rejects a profile that is `CalibrationProfile.default` (a display-only
+placeholder that by contract never arms a gate), one whose `nearBaseline` is weaker
+than its `farBaseline`, a non-positive `slope`, and a negative `noise`. These are
+sanity checks on a hand-edited file, not a second implementation of
+`CalibrationValidator`.
 
 ### Privacy rule
 
@@ -176,4 +210,7 @@ are recorded the same way — the scenario name is what tells them apart:
       vanishing
 
 Each recorded fixture needs a `.expected.json` golden transition sequence before it
-can be used in replay (testing.md §3). That is the engine's job, not this tool's.
+can be used in replay (testing.md §3). That is the engine's job, not this tool's —
+and it needs `--profile`, so calibrate the device before the runs you intend to turn
+into goldens. Fixtures are picked up by scanning `Tests/Fixtures/BLE`, so dropping in
+a capture and its golden is enough to add it to the regression set.
