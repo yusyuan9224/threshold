@@ -29,6 +29,19 @@ extension Coordinator {
     ///
     /// Only this channel triggers restarts. `sensorStates` ends at the same moment when the whole
     /// adapter shuts down, and reacting to both would double every attempt.
+    ///
+    /// 實作註記 2026-09-03: `CoreBluetoothScanner.observations` only finishes its continuation in
+    /// `deinit` (see `CoreBluetoothScanner.swift`), and the Coordinator holds its scanner strongly
+    /// for as long as the Coordinator itself is alive. So in a production `Coordinator`, this loop
+    /// observing a finished stream means the scanner instance is already gone — not merely
+    /// misbehaving — and the restart attempts below cannot actually revive it; `scanner.startScanning`
+    /// is called on the same (now-deallocated-or-going-to-be) instance. The loop still runs its
+    /// bounded restart sequence rather than special-casing this, which is what makes the outcome a
+    /// clean, observable, fail-closed shutdown (`.unavailable(.scannerFailed)` after
+    /// `maxScannerRestarts` attempts) instead of a silent hang — the failure mode this code is
+    /// actually defending against is a *test* `BLEScanning` fake ending its stream, or a future
+    /// adapter with different lifetime semantics, not a live `CoreBluetoothScanner` restarting
+    /// itself mid-flight.
     func observationLoop() async {
         var attempt = 0
         while !Task.isCancelled, !isStopped {
