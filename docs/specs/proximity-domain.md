@@ -48,6 +48,8 @@ struct Timestamped<T: Sendable>: Sendable { let value: T; let at: MonotonicInsta
 
 丟棄理由以回傳值 `ValidationResult` 表達，供外層記錄。
 
+**實作註記**：規則 3 的 `lastAccepted` 是該裝置**已接受樣本中最新的** `at`（單調不回退），不是最後一次接受的那筆樣本自己的 `at`——skew 窗口內的亂序樣本會被接受，但不把參考點往回移，否則連續的亂序樣本會讓窗口逐步後退；`reset` 後該值清空，新 episode 的第一筆樣本因此不受舊時間戳約束。
+
 ## 2. Signal/
 
 每個裝置一條管線，全部參數在 `EngineConfiguration`：
