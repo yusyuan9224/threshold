@@ -44,11 +44,15 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 
 顯示器在 548 ms 後就醒了，喚醒原因未記錄（見 SPIKE-003）。
 
+### 第二筆樣本（2026-09-02 14:44 UTC，SPIKE-003 自動化批次的迭代 1）
+
+同樣以 `pmset displaysleepnow` 觸發，螢幕原本未鎖定：`CGDisplayIsAsleep` 轉 true 於 t 3 072 ms → `CGSSessionScreenIsLocked` 轉 `1` 於 **+41 ms** → `com.apple.screenIsLocked` 於 **+74 ms**。失敗 0 次（累計 n = 2）。迭代 2、3 時螢幕已鎖定，顯示器睡眠不產生新的 lock 事件（符合預期，不計入樣本）。
+
 ### Not yet measured
 
 對應本文件的實驗章節：
 
-- **樣本數**：規格要求每條路徑 50 次；路徑 ① 實際 1 次。
+- **樣本數**：規格要求每條路徑 50 次；路徑 ① 實際 2 次（每次需使用者解鎖才能再取樣，無法無人自動化）。
 - **路徑 ②（⌃⌘Q via `CGEvent`）、③（`shortcuts run "Lock Screen"`）、④（`ScreenSaverEngine`）**：完全未測。
 - **路徑 ① 的規格實作**：IOKit `IORequestIdle` 未測，本次以 `pmset displaysleepnow` 代替。
 - **「要求密碼」設定**：只測了「立即」。5 秒、關閉兩組未測 —— 這正是判斷路徑 ①④ 是否真的「鎖」的關鍵變因。
@@ -57,6 +61,6 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 
 ### Preliminary reading
 
-尚無 GO/NO-GO。成功條件要求「至少一條無權限路徑在『要求密碼＝立即』下 **100% 鎖定**（50 次）且延遲 ≤ 2 s」，目前只有 1 次成功樣本。
+尚無 GO/NO-GO。成功條件要求「至少一條無權限路徑在『要求密碼＝立即』下 **100% 鎖定**（50 次）且延遲 ≤ 2 s」，目前只有 2 次成功樣本（+76 ms、+41 ms）。
 
 這 1 次樣本顯示：在「要求密碼＝立即」下，顯示器睡眠**確實**在 156 ms 內帶出 `com.apple.screenIsLocked`，且不需要任何權限。這是路徑 ① 值得優先投資的初步理由，但不足以定下 `MacOSLockController` 的策略順序與退回邏輯。下一步應先補齊路徑 ① 的 50 次重複與「要求密碼」的三種設定，再測 ③④。

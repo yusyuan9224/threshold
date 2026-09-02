@@ -8,8 +8,8 @@
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
 | SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（2026-09-02） |
-| SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | NOT RUN（2026-09-02 曾嘗試，工具缺陷） |
-| SPIKE-003 | 喚醒行為與 system sleep 邊界 | MVP 4 | 3（MVP 3 期間） | NOT RUN |
+| SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | PARTIAL（2026-09-02，探針修正後一筆觀察） |
+| SPIKE-003 | 喚醒行為與 system sleep 邊界 | MVP 4 | 3（MVP 3 期間） | PARTIAL（2026-09-02，display sleep 3/3） |
 | SPIKE-005 | Apple Watch 解鎖互動 | MVP 4 | 3 | NOT RUN |
 | SPIKE-006 | Touch ID 互動 | MVP 4 | 3 | NOT RUN |
 | SPIKE-002 | loginwindow 偵測 | MVP 6 | 4（MVP 5 後） | NOT RUN |
@@ -20,7 +20,7 @@ Spike 產出的程式碼一律標記 throwaway，放在 `Tools/spikes/<id>/`，�
 
 原始量測資料在 `Tools/spikes/out/`（JSONL），**已列入 `.gitignore` 不進版控**：內容含 `CBPeripheral.identifier`、裝置廣播名稱等可識別資訊。文件中一律以「裝置 A／B／…」代稱，不寫入任何 identifier、裝置名稱或主機名稱。
 
-2026-09-02 的實測工具：`Tools/spikes/ble-observe`（SPIKE-009／004）、`Tools/spikes/screen-state`（SPIKE-001／007，以及 SPIKE-008 的無效嘗試）、`Tools/spikes/wake-display`（SPIKE-003，未執行）。工具目錄命名與上述 `<id>` 慣例不同。
+2026-09-02 的實測工具：`Tools/spikes/ble-observe`（SPIKE-009／004）、`Tools/spikes/screen-state`（SPIKE-001／007，以及 SPIKE-008 的無效嘗試）、`Tools/spikes/wake-display`（SPIKE-003，3 次）。工具目錄命名與上述 `<id>` 慣例不同。
 
 `screen-state` 的 idle 探針傳入 `CGEventType.null` 而非 `kCGAnyInputEventType`，SPIKE-008 的資料因此無效；重測前需先修正該工具。
 

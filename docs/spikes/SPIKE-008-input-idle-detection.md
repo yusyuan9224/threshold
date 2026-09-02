@@ -1,5 +1,5 @@
 # SPIKE-008 Input Idle Detection
-Status: NOT RUN（2026-09-02 曾嘗試，工具缺陷導致資料無效）　Priority: 2（silence policy 前）
+Status: PARTIAL（2026-09-02：首次嘗試工具缺陷無效；探針修正後有一筆觀察）　Priority: 2（silence policy 前）
 
 ## Question
 `CGEventSource.secondsSinceLastEventType(_:eventType:)` 用哪個 `stateID`（`.hidSystemState`／`.combinedSessionState`）、是否計入 synthetic event、在 lock screen／screen saver／display sleep／fast user switching 下回傳什麼、是否真的不需要 Accessibility？
@@ -53,3 +53,15 @@ screen-run1（120 s，24 個樣本）與 screen-run2（75 s，15 個樣本）中
 ### 下一步
 
 以 `CGEventType(rawValue: ~0)` 重寫探針後，重跑全部情境。在此之前 `system-integration.md` §1 的保守方向不變：`InputActivityProviding` 的 `inputIdle` 一律回 nil，Policy 不依賴它，`PolicySettings.silenceLock` 不改為預設啟用。
+
+### 探針修正後的觀察（2026-09-02 14:46 UTC）
+
+`screen-state` 改用 `CGEventType(rawValue: ~0)`（commit 1f9de4b）後，在使用者閒置且螢幕鎖定、顯示器剛被 `IOPMAssertionDeclareUserActivity` 點亮的狀態下跑 6 s：
+
+| stateID | 回傳 idle | 對照 |
+|---|---|---|
+| `.hidSystemState` | 810 s | `ioreg -c IOHIDSystem` HIDIdleTime 同時刻 ≈ 826 s（一致） |
+| `.combinedSessionState` | 18 s | 前一次 `IOPMAssertionDeclareUserActivity` 呼叫發生於約 18 s 前 |
+
+**發現**：`combinedSessionState` 會被 `IOPMAssertionDeclareUserActivity` 重置——那正是本產品 `MacOSWakeController` 要呼叫的 API。若 `InputActivityProviding` 用 `combinedSessionState`，App 自己的 wake 會把 idle 歸零，污染 silence lock 的 supporting evidence。`hidSystemState` 反映真實 HID 閒置，且在鎖定畫面下仍可讀（免權限）。
+**決定（暫定）**：`MacOSInputActivityProvider` 使用 `.hidSystemState`。仍未測：打字／滑鼠時是否即時歸零、synthetic `CGEvent` 是否計入、screen saver／fast user switching 下的值——這些需要使用者在場，狀態維持 PARTIAL。
