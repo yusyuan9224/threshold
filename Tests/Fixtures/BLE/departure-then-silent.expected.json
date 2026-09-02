@@ -1,0 +1,27 @@
+{
+  "final" : {
+    "evidence" : "departureThenSilent",
+    "presence" : "away"
+  },
+  "scenario" : "departure-then-silent",
+  "transitions" : [
+    {
+      "at" : 6000,
+      "cause" : "confirmedNear",
+      "from" : "unknown(initial)",
+      "to" : "present"
+    },
+    {
+      "at" : 13000,
+      "cause" : "signalWeakened",
+      "from" : "present",
+      "to" : "departing"
+    },
+    {
+      "at" : 26000,
+      "cause" : "departureThenSilent",
+      "from" : "departing",
+      "to" : "away"
+    }
+  ]
+}
