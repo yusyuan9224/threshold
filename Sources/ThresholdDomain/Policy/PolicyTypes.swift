@@ -33,13 +33,13 @@ public enum ActionOutcome: Sendable, Equatable {
     case failed(String)
 }
 
-public enum SilenceLockPolicy: Sendable, Equatable {
+public enum SilenceLockPolicy: Codable, Sendable, Equatable {
     case never
     case afterTimeout(Duration)
 }
 
 /// User-facing settings. Value type; changes flow into the Coordinator as an event.
-public struct PolicySettings: Sendable, Equatable {
+public struct PolicySettings: Codable, Sendable, Equatable {
     public var autoLock: Bool = true
     public var wakeOnReturn: Bool = true
     /// Independent switch: may `departureThenSilent` evidence trigger a lock?
@@ -125,7 +125,12 @@ public struct PolicyOutput: Sendable {
     }
 }
 
-public enum AcknowledgeResult: Sendable, Equatable { case applied, stale }
+/// Result of feeding an action outcome back into the ledger.
+/// - `applied`: recorded; the action completed.
+/// - `failed`: recorded as failed; the action is retry-eligible within its attempt budget.
+/// - `stale`: unknown action, or one belonging to a superseded episode. The ledger is left
+///   untouched and nothing is re-dispatched (security.md §2.6).
+public enum AcknowledgeResult: Sendable, Equatable { case applied, failed, stale }
 
 /// Effect lifecycle (architecture.md §6).
 public enum ActionStage: Sendable, Equatable { case proposed, issued, acknowledged, confirmed, failed, stale, gaveUp }

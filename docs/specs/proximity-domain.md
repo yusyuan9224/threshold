@@ -248,7 +248,7 @@ enum ActionOutcome: Sendable, Equatable { case completed; case failed(String) }
 
 struct PolicyEngine {                                    // 非 Sendable；只由 Coordinator 持有
     mutating func evaluate(_ snapshot: PolicySnapshot, trigger: PolicyTrigger) -> PolicyOutput
-    mutating func acknowledge(actionID: ActionID, episodeID: EpisodeID, outcome: ActionOutcome, at: MonotonicInstant) -> AcknowledgeResult   // .applied | .stale
+    mutating func acknowledge(actionID: ActionID, episodeID: EpisodeID, outcome: ActionOutcome, at: MonotonicInstant) -> AcknowledgeResult   // .applied | .failed | .stale（.failed：已記錄失敗，attempts 內可立即重試，見 §6.4）
 }
 ```
 決策是 `PolicySnapshot` 的純函式 + 引擎自身 ledger；`trigger` 不參與決策，只進 rationale。任何輸入變化都重評，因此「away 時 screen unknown、100 ms 後 screen 變 unlocked」由 `.screen` trigger 的重評解決，不需 presence 再轉換。
@@ -302,6 +302,7 @@ enum CalibrationFailure: Sendable, Equatable { case insufficientSamples(phase: P
 
 ### 7.3 Gate 規則（`CalibrationValidator.gate(record, context)`）
 - 無 record → `.noProfile`
+- record 的 profile 等於 `CalibrationProfile.default`（display-only placeholder，slope 與自身 baseline 不自洽，真實 session 不可能產生）→ `.noProfile`（實作附註 2026-09-02：防止 placeholder 被持久化後 arm）
 - `record.device ≠ device` → `.deviceMismatch`；`record.macIdentity ≠ 現在的 macIdentity`（IOKit 公開 IOPlatformUUID）→ `.macMismatch`
 - `record.osMajorVersion ≠ 現在` → `.needsRevalidation(osMajorChanged: true)`
 - `CalibrationPolicy.maxProfileAge` 非 nil 且超齡 → `.needsRevalidation(osMajorChanged: false)`
