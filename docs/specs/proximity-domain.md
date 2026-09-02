@@ -114,6 +114,17 @@ enum SensorHealth: Sendable, Equatable {
 }
 
 enum PresenceEvidence: Sendable, Equatable { case none; case measuredNear; case measuredFar; case departureThenSilent }
+
+enum TransitionCause: Sendable, Equatable {
+    // presence 軸
+    case confirmedNear, measuredFar, signalWeakened, signalRecovered, departureThenSilent, evidenceExpired
+    case reset(ResetReason), sensorRestored
+    // sensor 軸
+    case sensorBecameHealthy, sensorDegraded(DegradedReason), sensorUnavailable(UnavailableReason), sensorInitializing
+    // device 軸
+    case deviceSilent, deviceReceiving
+}
+enum Axis: Sendable, Equatable { case presence; case sensor; case device(DeviceID) }
 ```
 
 ### 4.2 引擎
