@@ -66,6 +66,11 @@ public final class CoreBluetoothScanner: BLEScanning, CentralEventSink, @uncheck
     /// (CoreBluetooth does redeliver) cannot produce two identical consecutive
     /// events, which would corrupt the diagnostics transition sequence.
     private var lastSensorStatus: SensorStatus?
+    /// Set when `performPause()` reports `.degraded(.scanInterrupted)` because a scan
+    /// or discovery was actually running. `performResume()` consults it to decide
+    /// whether recovery is its call to make (architecture.md §5.4) — a pause that
+    /// found nothing running must not make resume claim `.available` out of nowhere.
+    private var scanWasInterruptedByPause = false
 
     /// Derived rather than stored, so it cannot drift out of sync with the session.
     private var isDiscovering: Bool { discoverySession != nil }
@@ -109,6 +114,13 @@ public final class CoreBluetoothScanner: BLEScanning, CentralEventSink, @uncheck
     deinit {
         observationContinuation.finish()
         sensorContinuation.finish()
+        // Reads `discoverySession` off `scanQueue`, which the type's Sendable
+        // contract otherwise forbids — safe here by construction: every queue-confined
+        // closure that could still be pending (`scanQueue.async { self.perform... }`,
+        // `makeCentral`'s callbacks, `onTermination`) captures `self` strongly, so if
+        // any of them had not yet run, this instance could not be deinitializing. By
+        // the time `deinit` runs, no confined access to `discoverySession` can be in
+        // flight, so there is nothing left to race.
         discoverySession?.continuation.finish()
     }
 
@@ -171,12 +183,14 @@ public final class CoreBluetoothScanner: BLEScanning, CentralEventSink, @uncheck
 
     func didUpdateState(_ state: CBManagerState) {
         assertOnScanQueue()
-        if let status = Self.sensorStatus(for: state), status != lastSensorStatus {
-            lastSensorStatus = status
-            sensorContinuation.yield(Timestamped(status, at: clock.now()))
+        if let status = Self.sensorStatus(for: state) {
+            yieldSensorStatus(status)
         }
         // A state change can make scanning newly possible (`.poweredOn` arriving after
-        // `startScanning`) or newly impossible (`.poweredOff`).
+        // `startScanning`) or newly impossible (`.poweredOff`). It also takes
+        // precedence over pause/resume signalling below (bluetooth.md §3): a
+        // `.poweredOff` that lands while paused is reported here regardless of the
+        // pause/resume bookkeeping in `performPause`/`performResume`.
         syncScanState()
     }
 
@@ -215,9 +229,17 @@ public final class CoreBluetoothScanner: BLEScanning, CentralEventSink, @uncheck
     private func performPause() {
         assertOnScanQueue()
         guard !isPaused else { return }
+        // Captured before flipping `isPaused`: this is "was a scan actually running",
+        // not just caller intent, so a pause with nothing running (never started, or
+        // powered off/resetting) reports nothing on the sensor channel.
+        let wasActivelyScanning = (isScanning || isDiscovering) && central?.state == .poweredOn
         isPaused = true
         // `isScanning` is deliberately left alone: it is the caller's intent, and
         // `resume()` restores scanning only if we were scanning before the pause.
+        if wasActivelyScanning {
+            scanWasInterruptedByPause = true
+            yieldSensorStatus(.degraded(.scanInterrupted))
+        }
         syncScanState()
     }
 
@@ -232,6 +254,28 @@ public final class CoreBluetoothScanner: BLEScanning, CentralEventSink, @uncheck
         // is still scanning.
         if let central, central.isScanning { central.stopScan() }
         syncScanState()
+
+        // Recovery is only ours to report if pause is what interrupted the scan, and
+        // only once the central has actually reached `.poweredOn` again — a
+        // `.poweredOff`/`.resetting` that arrived while paused already reported its
+        // own status via `didUpdateState` and takes precedence (bluetooth.md §3).
+        if scanWasInterruptedByPause {
+            scanWasInterruptedByPause = false
+            if central?.state == .poweredOn {
+                yieldSensorStatus(.available)
+            }
+        }
+    }
+
+    /// Yields `status` on the sensor channel unless it repeats the last-yielded
+    /// status. Shared by `didUpdateState` and the pause/resume signalling in
+    /// `performPause`/`performResume` so "no consecutive duplicate sensor events"
+    /// (T-19) holds regardless of which caller produced the status.
+    private func yieldSensorStatus(_ status: SensorStatus) {
+        assertOnScanQueue()
+        guard status != lastSensorStatus else { return }
+        lastSensorStatus = status
+        sensorContinuation.yield(Timestamped(status, at: clock.now()))
     }
 
     private func performStopScanning() {

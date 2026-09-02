@@ -266,6 +266,112 @@ import ThresholdDomain
     }
 }
 
+/// architecture.md §5.4: across pause()/resume(), the sensor channel must report
+/// `.degraded(.scanInterrupted)` when an active scan is stopped by pause, and
+/// `.available` again once resume has reissued the scan and the central is
+/// `.poweredOn`. Review finding M-1.
+@Suite struct CoreBluetoothScannerPauseResumeSensorTests {
+
+    @Test func pauseWhileScanningReportsScanInterrupted() async {
+        let harness = ScannerHarness()
+        harness.scanner.startScanning(for: [deviceA])
+        harness.flush()
+        harness.central?.simulateState(.poweredOn)
+        harness.flush()
+
+        harness.scanner.pause()
+        harness.flush()
+
+        let statuses = await drain(harness.scanner.sensorStates, limit: 10).map(\.value)
+        #expect(statuses == [.available, .degraded(.scanInterrupted)])
+    }
+
+    @Test func pauseWhileDiscoveringReportsScanInterrupted() async {
+        let harness = ScannerHarness()
+        let stream = harness.scanner.discover()
+        harness.flush()
+        harness.central?.simulateState(.poweredOn)
+        harness.flush()
+
+        harness.scanner.pause()
+        harness.flush()
+
+        let statuses = await drain(harness.scanner.sensorStates, limit: 10).map(\.value)
+        #expect(statuses == [.available, .degraded(.scanInterrupted)])
+        withExtendedLifetime(stream) {}
+    }
+
+    @Test func resumeReportsAvailableAfterScanInterrupted() async {
+        let harness = ScannerHarness()
+        harness.scanner.startScanning(for: [deviceA])
+        harness.flush()
+        harness.central?.simulateState(.poweredOn)
+        harness.flush()
+
+        harness.scanner.pause()
+        harness.flush()
+        harness.scanner.resume()
+        harness.flush()
+
+        let statuses = await drain(harness.scanner.sensorStates, limit: 10).map(\.value)
+        #expect(statuses == [.available, .degraded(.scanInterrupted), .available])
+    }
+
+    /// Nothing was scanning at pause time, so the sensor channel must stay silent.
+    @Test func pauseWhenNeverScanningEmitsNoSensorEvent() async {
+        let harness = ScannerHarness()
+        harness.scanner.startScanning(for: [deviceA])
+        harness.flush()
+        harness.central?.simulateState(.poweredOn)
+        harness.flush()
+        harness.scanner.stopScanning()
+        harness.flush()
+
+        harness.scanner.pause()
+        harness.flush()
+
+        let statuses = await drain(harness.scanner.sensorStates, limit: 10).map(\.value)
+        #expect(statuses == [.available])
+    }
+
+    /// Calling pause() twice must not corrupt the "no consecutive duplicate sensor
+    /// events" property T-19 asserts.
+    @Test func pauseTwiceEmitsOnlyOneScanInterruptedEvent() async {
+        let harness = ScannerHarness()
+        harness.scanner.startScanning(for: [deviceA])
+        harness.flush()
+        harness.central?.simulateState(.poweredOn)
+        harness.flush()
+
+        harness.scanner.pause()
+        harness.scanner.pause()
+        harness.flush()
+
+        let statuses = await drain(harness.scanner.sensorStates, limit: 10).map(\.value)
+        #expect(statuses == [.available, .degraded(.scanInterrupted)])
+    }
+
+    /// A central-state change during pause must still map per bluetooth.md §3 and
+    /// take precedence: resuming into `.poweredOff` must not claim `.available`.
+    @Test func poweredOffWhilePausedSuppressesAvailableOnResume() async {
+        let harness = ScannerHarness()
+        harness.scanner.startScanning(for: [deviceA])
+        harness.flush()
+        harness.central?.simulateState(.poweredOn)
+        harness.flush()
+
+        harness.scanner.pause()
+        harness.flush()
+        harness.central?.simulateState(.poweredOff)
+        harness.flush()
+        harness.scanner.resume()
+        harness.flush()
+
+        let statuses = await drain(harness.scanner.sensorStates, limit: 10).map(\.value)
+        #expect(statuses == [.available, .degraded(.scanInterrupted), .unavailable(.poweredOff)])
+    }
+}
+
 @Suite struct CoreBluetoothScannerDiscoveryTests {
 
     @Test func discoveryStreamFinishesOnStopDiscovery() async {

@@ -120,12 +120,16 @@ import ThresholdDomain
         let statuses = await drain(harness.scanner.sensorStates, limit: 5_000).map(\.value)
 
         // An array, not a Set: `SensorStatus` is Equatable but deliberately not Hashable.
+        // `.degraded(.scanInterrupted)` is legal here too: the storm interleaves
+        // pause()/resume() with active scanning, which is exactly what produces it
+        // (architecture.md §5.4, review finding M-1).
         let legal: [SensorStatus] = [
             .available,
             .unavailable(.poweredOff),
             .unavailable(.unauthorized),
             .unavailable(.unsupported),
             .degraded(.resetting),
+            .degraded(.scanInterrupted),
         ]
         #expect(statuses.allSatisfy { legal.contains($0) })
         #expect(!statuses.isEmpty)
