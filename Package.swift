@@ -42,7 +42,7 @@ let package = Package(
         .target(name: "ThresholdAppKit",
                 dependencies: ["ThresholdDomain", "ThresholdBluetooth", "ThresholdSystem",
                                "ThresholdDiagnostics", "ThresholdRuntime"]),
-        .executableTarget(name: "ThresholdApp", dependencies: ["ThresholdRuntime"]),
+        .executableTarget(name: "ThresholdApp", dependencies: ["ThresholdAppKit"]),
 
         .testTarget(name: "ThresholdDomainTests", dependencies: ["ThresholdDomain"],
                     resources: [.copy("../Fixtures/BLE")]),
