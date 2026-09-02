@@ -375,6 +375,32 @@ struct ProximityEngineMechanicsTests {
         #expect(harness.snapshot.devices[DeviceID("device-Z")] == nil)
     }
 
+    /// proximity-domain.md §1.1 note: the reorder reference is the newest accepted instant and does
+    /// not move backwards, so a run of reordered samples cannot walk the skew window backwards.
+    @Test func aReorderWithinSkewDoesNotRewindTheReference() {
+        var harness = Harness()
+        harness.observe(nearRSSI, at: 10)
+        harness.observe(nearRSSI, at: 9.5)          // inside maxSkew of the 10 s sample: accepted
+        #expect(harness.snapshot.devices[DeviceID("device-A")]?.estimate?.sampleCount == 2)
+
+        // Still judged against 10 s rather than 9.5 s, so this one falls outside the window.
+        harness.observe(nearRSSI, at: 8.6)
+        let track = harness.snapshot.devices[DeviceID("device-A")]
+        #expect(track?.estimate?.sampleCount == 2)
+        #expect(track?.estimate?.lastSeen == instant(10), "an accepted reorder does not rewind last-seen")
+    }
+
+    @Test func aResetClearsTheReorderReference() {
+        var harness = Harness()
+        harness.observe(nearRSSI, at: 10)
+        harness.send(.reset(.systemWake, at: instant(10)))
+        // A sample queued from before the wake is accepted, since the new episode has no reference
+        // yet, but it is clamped to the reset instant so it cannot backdate the new evidence.
+        harness.observe(nearRSSI, at: 5)
+        let track = harness.snapshot.devices[DeviceID("device-A")]
+        #expect(track?.estimate?.sampleCount == 1)
+        #expect(track?.estimate?.lastSeen == instant(10))
+    }
     @Test func multipleDevicesFuseByMaximumAndSilenceIsPerDevice() {
         var harness = Harness(devices: ["device-A", "device-B"])
         for second in stride(from: 0.0, through: 6.0, by: 1) {

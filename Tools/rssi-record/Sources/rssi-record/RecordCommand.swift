@@ -8,9 +8,10 @@ enum RecordCommand {
 
     static func run(_ options: RecordOptions) async throws {
         // Checked before a single second of the operator's time is spent, not at
-        // write time: discovering that the path was taken *after* a thirty-minute
-        // walk-around is the worst possible moment to find out.
-        try FixtureWriter.checkWritable(options.outputPath)
+        // write time: discovering that the path was taken, or that the filename does
+        // not match the scenario, *after* a thirty-minute walk-around is the worst
+        // possible moment to find out.
+        try FixtureWriter.checkWritable(options.outputPath, scenario: options.scenario)
 
         let clock = ContinuousBLEClock()
         let scanner = CoreBluetoothScanner(clock: clock)
@@ -87,7 +88,7 @@ enum RecordCommand {
                 )
             ]
 
-        try FixtureWriter.write(lines: lines, to: options.outputPath)
+        try FixtureWriter.write(lines: lines, to: options.outputPath, scenario: options.scenario)
         report(metrics, path: options.outputPath, lineCount: lines.count)
     }
 

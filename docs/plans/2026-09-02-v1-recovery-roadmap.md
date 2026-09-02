@@ -21,7 +21,14 @@ SPIKE-001/008 (+ one display-sleep sample touching SPIKE-003/007). Docs still sa
   14:52 T2 diagnostics merged (1c9d487) after BLOCK→fix→re-review. main: 262 tests, boundaries OK.
 - T1 spike evidence written (dd36b21, faa882e, ffdf2ef): SPIKE-009/004/001/007/003/008 PARTIAL with data;
   autonomous runs added SPIKE-003 (3/3 wake) and SPIKE-004 (display-sleep scan continuity).
-- T6 clock committed (aa8cc9f); providers/controllers/stores in progress. T7 engine in progress. T10 rssi-record in progress.
+- 15:05 T6 system merged (d43423f): clocks, providers, controllers, stores. 15:12 T7 engine merged + T10 rssi-record
+  (104fbde). main: 456 tests. Engine follow-up (T-15 coverage of rows #6/#7) in progress on feat/domain-engine.
+- 2026-09-03 02:00 T8 Coordinator committed (feat/runtime-coordinator, 21 L3 tests) → review MERGE AFTER FIXES
+  (deadline epoch guard; event stream buffering). T9 App committed (feat/app, ThresholdAppKit 72 tests) → review
+  MERGE AFTER FIXES (onboarding discovery must show Bluetooth-unavailable state). Fixes in progress.
+- 07:50 docs/release.md merged (93cf791). Remaining docs (README/CHANGELOG/ADR-009/011/CONTRIBUTING) after wiring.
+- Next: merge both → T9b wire Coordinator into AppContainer (10 seams listed in app-ui report) → full verification →
+  docs → readiness report.
 
 ## Task graph
 ```text
