@@ -57,6 +57,15 @@ public actor Coordinator {
 
     var runTask: Task<Void, Never>?
     var deadlineTask: Task<Void, Never>?
+    /// Bumped on every deadline cancellation or reschedule, and again on `.systemWillSleep`. The
+    /// sleeping deadline task captures this value before it suspends and, when it wakes, delivers
+    /// its tick only if the epoch it captured is still current (§5.4, `deliverDeadlineTick`). This
+    /// replaces a `Task.isCancelled` check that used to run *outside* actor isolation: that check
+    /// and the actor hop that followed it left a window where `.systemWillSleep` could cancel the
+    /// task just after the check passed, and the stale tick would still land and re-arm a timer
+    /// while asleep. The check below runs *inside* actor isolation instead, serialized against
+    /// every other mutation, so there is no such window.
+    var deadlineEpoch: UInt64 = 0
     var isStopped = false
     /// Bumped whenever the proximity subsystem is rebuilt. Action ids and episode ids both restart
     /// from scratch at that point, so an outcome from before the rebuild could otherwise collide
@@ -233,6 +242,7 @@ public actor Coordinator {
             power = .systemAsleep
             deadlineTask?.cancel()
             deadlineTask = nil
+            deadlineEpoch &+= 1
             scanner.pause()
 
         case .systemDidWake:

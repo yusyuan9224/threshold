@@ -102,11 +102,13 @@ extension Coordinator {
     func rescheduleDeadline(policyDeadline: MonotonicInstant?) {
         deadlineTask?.cancel()
         deadlineTask = nil
+        deadlineEpoch &+= 1
         guard !isStopped else { return }
 
         let candidates = [engine.snapshot.nextDeadline, policyDeadline].compactMap { $0 }
         guard let next = candidates.min() else { return }
 
+        let epoch = deadlineEpoch
         let clock = self.clock
         deadlineTask = Task.detached { [weak self] in
             do {
@@ -114,10 +116,28 @@ extension Coordinator {
             } catch {
                 return  // cancelled: a newer deadline has already been armed
             }
-            guard !Task.isCancelled else { return }
             // The clock's own reading, not `next`: a real clock overshoots its deadline, and the
-            // engine treats a tick from the past as carrying no information.
-            await self?.handle(.tick(clock.now()))
+            // engine treats a tick from the past as carrying no information. Whether this delivery
+            // is still current is decided inside `deliverDeadlineTick`, not here (see its doc).
+            await self?.deliverDeadlineTick(epoch: epoch, at: clock.now())
         }
+    }
+
+    /// Delivers the tick armed by `rescheduleDeadline`, but only if nothing has superseded it since
+    /// the sleep began.
+    ///
+    /// The check this replaced — `guard !Task.isCancelled` — ran on the detached task, *outside*
+    /// actor isolation, with a window between that check and the hop into the actor where
+    /// `.systemWillSleep` could land: cancel the task just after the check passed, and the tick
+    /// would still arrive and re-arm a timer while asleep (§5.4). Comparing `epoch` here instead
+    /// runs entirely inside actor isolation, so it is serialized against every other mutation
+    /// rather than racing it: either this call reaches the actor before `.systemWillSleep` (a
+    /// legitimate tick, and whatever it reschedules is promptly cancelled when `.systemWillSleep`
+    /// runs next) or after (this guard rejects it outright, since `.systemWillSleep` already bumped
+    /// the epoch and set `power`). Both orderings converge on the same safe state: nothing left
+    /// scheduled once `.systemWillSleep` has finished.
+    func deliverDeadlineTick(epoch: UInt64, at instant: MonotonicInstant) {
+        guard !isStopped, epoch == deadlineEpoch, power != .systemAsleep else { return }
+        handle(.tick(instant))
     }
 }

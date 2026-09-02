@@ -61,6 +61,39 @@ import ThresholdSystem
         #expect(harness.wake.wakeCount == 0)
     }
 
+    /// MEDIUM-1: the `Task.isCancelled` check the deadline task used to make ran outside actor
+    /// isolation, leaving a window between that check and the actor hop where `.systemWillSleep`
+    /// could cancel the task just after the check passed. The stale delivery must still be rejected
+    /// once it reaches the actor, by the epoch it captured before it went to sleep — not by timing.
+    @Test func staleDeadlineTickIsRejectedAfterSystemWillSleep() async {
+        let harness = RuntimeHarness()
+        await harness.start()
+        await harness.drive(nearRSSI, from: 0, through: 6)
+        #expect(await waitForSleepers(harness.clock))
+
+        // What the in-flight deadline task captured before `.systemWillSleep` ran.
+        let staleEpoch = await harness.coordinator.deadlineEpoch
+
+        await harness.coordinator.handle(.lifecycle(.systemWillSleep))
+        #expect(harness.scanner.pauseCount == 1)
+        #expect(await waitUntil { harness.clock.pendingSleepers == 0 }, "the deadline task was cancelled")
+
+        // Simulates the race: the stale task passed its (racy) cancellation check before
+        // `.systemWillSleep` landed, and delivers anyway.
+        await harness.coordinator.deliverDeadlineTick(epoch: staleEpoch, at: harness.clock.now())
+
+        #expect(harness.clock.pendingSleepers == 0, "nothing was scheduled while asleep")
+        #expect(
+            !harness.collector.transitions.contains { $0.cause == .deviceSilent },
+            "the stale tick must not be handled"
+        )
+
+        // Scheduling resumes normally once the machine wakes.
+        await harness.coordinator.handle(.lifecycle(.systemDidWake))
+        await harness.drive(nearRSSI, from: 7, through: 13)
+        #expect(await waitForSleepers(harness.clock), "the deadline scheduler is armed again after wake")
+    }
+
     /// A display going dark says nothing about where the user is, so it moves `power` and nothing
     /// else.
     @Test func screenSleepAndWakeOnlyMovePowerState() async {
