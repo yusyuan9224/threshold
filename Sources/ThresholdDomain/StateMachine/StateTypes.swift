@@ -84,11 +84,20 @@ public struct ProximitySnapshot: Sendable, Equatable {
     public let sensor: SensorHealth
     public let devices: [DeviceID: DeviceTrack]
     public let nextDeadline: MonotonicInstant?
+    /// The `unknown → unknown` row of §4.3: `unknownGrace` has elapsed and there is still not enough
+    /// evidence to leave `unknown`. Deliberately *not* a transition — the state has not changed,
+    /// only our willingness to say so out loud.
+    public let presenceUncertain: Bool
+    /// Fused presence score at the last input, `nil` when no device is being heard.
+    /// Diagnostics and UI only: it is already folded into `presence`.
+    public let fusedScore: Double?
 
     public init(presence: PresenceState, presenceSince: MonotonicInstant, episode: EpisodeID, evidence: PresenceEvidence,
-                lastTransition: TransitionCause?, sensor: SensorHealth, devices: [DeviceID: DeviceTrack], nextDeadline: MonotonicInstant?) {
+                lastTransition: TransitionCause?, sensor: SensorHealth, devices: [DeviceID: DeviceTrack], nextDeadline: MonotonicInstant?,
+                presenceUncertain: Bool = false, fusedScore: Double? = nil) {
         self.presence = presence; self.presenceSince = presenceSince; self.episode = episode; self.evidence = evidence
         self.lastTransition = lastTransition; self.sensor = sensor; self.devices = devices; self.nextDeadline = nextDeadline
+        self.presenceUncertain = presenceUncertain; self.fusedScore = fusedScore
     }
 }
 
