@@ -11,6 +11,16 @@ Target：`ThresholdBluetooth`。依賴 Domain、Foundation、CoreBluetooth。**�
 
 若 SPIKE-009 對某類裝置為 UNSUITABLE，該類裝置從 supported list 移除；**不以 private API 或系統資料庫救**（ADR-009）。
 
+### Evidence so far（2026-09-02；SPIKE-009／004 = PARTIAL，契約不變）
+量測環境：一台 Apple Silicon Mac × macOS 26.6.2，Mac 全程清醒；600 s 連續掃描 + 一次 60 s 掃描。細節與「未測項目」見 `docs/spikes/SPIKE-009-*.md`、`SPIKE-004-*.md`。
+
+- `withServices: nil` + `allowDuplicates: true` 在 600 s 內對同 Apple ID 的 iPhone、Apple Watch、iPad 每個 10 s 視窗都有樣本，節奏約 0.8–1.0 筆/秒；不需 companion app、不需已知 service UUID、不需連線。
+- 同一台 Mac 上兩個相隔 53 s 的獨立 scanner process，11 個具名裝置的 `CBPeripheral.identifier` 全部相同。**reboot、BT off→on、24 h 尺度的穩定性仍未驗證**，§1 的第二條前提維持「待驗證」。
+- 同一房間 600 s 內出現 56 個唯一 identifier，每 10 s 視窗平均 22 個活躍，其中 12 個生命期 < 10 s。`DeviceRegistry` 與 discovery UI 必須承受這個雜訊量，且不可假設每個 identifier 對應一個持續存在的裝置。
+- 廣播的 RSSI 可能是 `127`（CoreBluetooth 的「數值不可用」哨兵值，56 個 identifier 中有 5 個出現過）。若不處理會被當成極近距離。這是實測發現，**尚未寫入 §4 契約**。
+- `CBManagerState` 在兩回合都是 `.unknown → .poweredOn` 一次到位，之後 66 個 10 s 取樣點全部 `.poweredOn` 且 `isScanning == true`，未出現 `.resetting`。`.unknown → .poweredOn` 的延遲在兩回合分別為 3 037 ms 與 59 ms，故建立 `CBCentralManager` 後必須容忍數秒的 `.unknown`。
+- **display sleep 與 system sleep 完全未測**，§4 的 `pause()`／`resume()` 行為沒有任何實測支撐。
+
 ## 2. 介面：三通道
 
 ```swift

@@ -1,5 +1,5 @@
 # SPIKE-004 CoreBluetooth Lifecycle
-Status: NOT RUN　Priority: 1（與 SPIKE-009 同批）
+Status: PARTIAL — 2026-09-02　Priority: 1（與 SPIKE-009 同批）
 
 ## Question
 `CBCentralManager` 在 display sleep、system sleep／wake、Bluetooth off／on、App Nap、長時間執行下的狀態序列與掃描行為為何？wake 後是否需重呼叫 `scanForPeripherals`？
@@ -23,3 +23,49 @@ NO-GO：display sleep 下掃描停止且無法恢復（Wake on Return 失去前�
 
 ## Decision resulting from outcome
 寫入 `bluetooth.md` §4 的 resume 行為、`system-integration.md` §4 表格的「預期」欄改為「實測」。
+
+## Evidence（2026-09-02）
+
+### 環境
+Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` 取得，工具未記錄版本）。**Mac 全程保持清醒**；本回合沒有任何 display sleep（10 分鐘級）或 system sleep 情境。
+
+### 工具與回合
+與 SPIKE-009 同一支 CLI（`Tools/spikes/ble-observe`）。每 10 s 記錄一次 `isScanning` 與 `CBManagerState`，並在 `centralManagerDidUpdateState` 每次觸發時記錄 (t, state)。
+
+### 狀態序列
+
+| 指標 | run1（60 s） | run2（600 s） |
+|---|---|---|
+| `CBCentralManager` 建立當下的 `state` | 0（`.unknown`） | 0（`.unknown`） |
+| 第一次 `centralManagerDidUpdateState` | t = 3 037 ms，state 5（`.poweredOn`） | t = 59 ms，state 5（`.poweredOn`） |
+| `centralManagerDidUpdateState` 觸發總次數 | 1 | 1 |
+| tick 數 | 6 | 60 |
+| tick 中 `state == .poweredOn` | 6/6 | 60/60 |
+| tick 中 `isScanning == true` | 6/6 | 60/60 |
+| 出現 `.resetting`／`.poweredOff`／`.unauthorized` | 0 | 0 |
+
+`.unknown → .poweredOn` 的延遲在兩回合差距很大（3 037 ms vs 59 ms）。run1 是當日第一次啟動該執行檔，**但工具沒有記錄是否出現藍牙權限對話**，因此不能宣稱差異的成因。實作上唯一能推出的要求是：`CBCentralManager` 建立後必須容忍數秒的 `.unknown`，不能同步假設已 `poweredOn`。
+
+### 一段推算出來的短暫鎖定／顯示器睡眠重疊（不構成 display sleep 證據）
+
+依輸出檔的 mtime 推算，SPIKE-001／007 的兩回合 `screen-state` 落在 run2 的區間內（約 elapsed 66–186 s 與 242–317 s），期間發生一次約 4 s 的螢幕鎖定與一次約 0.55 s 的顯示器睡眠；該期間 run2 的 `isScanning` 未變、廣播持續。**此對齊來自檔案時間戳推算而非任一工具記錄，且 0.55 s 遠短於本 spike 要求的 10 分鐘**，僅供參考，不作為 display sleep 下掃描是否持續的證據。
+
+### Not yet measured
+
+對應本文件的實驗章節，以下**全部未跑**：
+
+- display sleep 10 min 下掃描是否持續、樣本率是否下降
+- system sleep 10 min（合蓋／`pmset sleepnow`）前後的狀態序列，是否出現 `.resetting`
+- wake 後是否需要重呼叫 `scanForPeripherals`、wake 後首筆 observation 延遲
+- Bluetooth off→on
+- App Nap（背景 30 min；Info.plist 停用 vs 不停用）
+- 連續執行 24 h
+- Intel、macOS 14／15
+
+### Preliminary reading
+
+尚無 GO/NO-GO。成功條件的核心（「display sleep 下掃描持續」「wake 後可用 supported API 恢復」）**一項都沒測到**，因為本回合 Mac 全程清醒。
+
+目前只能說：在 Mac 保持清醒、單一 process 連續執行 10 分鐘的條件下，`CBCentralManager` 的狀態序列是 `.unknown → .poweredOn` 一次到位，之後 60 個 10 s 取樣點全部維持 `.poweredOn` 且 `isScanning == true`，未出現任何降級狀態。這支持 `bluetooth.md` §3 的狀態映射在正常路徑上可用，但**完全不支持** `pause()`／`resume()` 與 `reset(.systemWake)` 的任何設計選擇。
+
+`system-integration.md` §4 表格與 `bluetooth.md` §4 的 resume 行為維持「預期」，不改為「實測」。

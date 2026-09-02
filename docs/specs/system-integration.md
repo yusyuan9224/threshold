@@ -8,10 +8,10 @@ Target：`ThresholdSystem`。依賴 Domain、Foundation、AppKit、IOKit、CoreG
 
 | Protocol | Production 依據 | API 類別 | Spike | 備註 |
 |---|---|---|---|---|
-| `ScreenStateProviding` | `DistributedNotificationCenter`：`com.apple.screenIsLocked`／`com.apple.screenIsUnlocked`（transition signal）+ `CGSessionCopyCurrentDictionary()["CGSSessionScreenIsLocked"]`（current state query） | 公開函式、未文件化訊號與鍵 | **SPIKE-001** | 「兩源一致才回報，否則 `.unknown`」是**假說**，不是 production contract。notification 是 transition、query 是 state，時間上不必然同步；Spike 量測 mismatch 持續時間，據此決定 settling window 與 source confidence，避免 provider 長時間卡 `.unknown` |
+| `ScreenStateProviding` | `DistributedNotificationCenter`：`com.apple.screenIsLocked`／`com.apple.screenIsUnlocked`（transition signal）+ `CGSessionCopyCurrentDictionary()["CGSSessionScreenIsLocked"]`（current state query） | 公開函式、未文件化訊號與鍵 | **SPIKE-001**（PARTIAL 2026-09-02） | 「兩源一致才回報，否則 `.unknown`」是**假說**，不是 production contract。notification 是 transition、query 是 state，時間上不必然同步；Spike 量測 mismatch 持續時間，據此決定 settling window 與 source confidence，避免 provider 長時間卡 `.unknown`。**實測（4 個事件，鎖定 2／解鎖 2）**：未鎖定時 `CGSSessionScreenIsLocked` 這個鍵**不存在**（鎖定時為 `1`），故「取不到鍵」須解讀為 unlocked，不可解讀為 `.unknown`；通知在 4/4 事件中都晚於 query 翻轉 7–110 ms；0 次 mismatch、0 次 false `.unlocked`。500 ms settling window 與目前資料相容，但樣本數遠不足以定案（screen saver、fast user switching、Touch ID／Watch 解鎖皆未測）|
 | `SessionStateProviding` | `NSWorkspace.sessionDidBecomeActiveNotification`／`sessionDidResignActiveNotification` + `kCGSessionOnConsoleKey` | 公開 | — | |
 | `PowerStateProviding` | `NSWorkspace.willSleepNotification`／`didWakeNotification`／`screensDidSleepNotification`／`screensDidWakeNotification` | 公開 | SPIKE-003 | |
-| `InputActivityProviding` | `CGEventSource.secondsSinceLastEventType(_:eventType:)` | 公開；鎖定畫面行為待驗 | **SPIKE-008** | Spike 前 Policy 不依賴：`inputIdle` 一律 nil（保守方向） |
+| `InputActivityProviding` | `CGEventSource.secondsSinceLastEventType(_:eventType:)` | 公開；鎖定畫面行為待驗 | **SPIKE-008**（NOT RUN） | Spike 前 Policy 不依賴：`inputIdle` 一律 nil（保守方向）。2026-09-02 的嘗試無效：探針傳入 `eventType: .null`（rawValue 0）而非 `kCGAnyInputEventType`（rawValue `UInt32.max`），量到的不是 idle。修正為 `CGEventType(rawValue: ~0)` 後重跑，本列的鎖定畫面行為仍為「待驗」|
 
 介面形狀（各 provider 相同）：
 ```swift
@@ -36,7 +36,7 @@ protocol ScreenStateProviding: Sendable {
 
 | 狀態 | 預期（待 SPIKE-003／004 驗證） |
 |---|---|
-| Display asleep、system awake | process 執行、CoreBluetooth 持續掃描、`IOPMAssertionDeclareUserActivity` 可點亮螢幕 |
+| Display asleep、system awake | process 執行、CoreBluetooth 持續掃描、`IOPMAssertionDeclareUserActivity` 可點亮螢幕。**實測（SPIKE-007，n=1，2026-09-02）**：在「睡眠後立即要求密碼」下，顯示器睡眠後 76 ms `CGSSessionScreenIsLocked` 轉 `1`、156 ms `com.apple.screenIsLocked` 抵達，無需權限。本列的其餘兩項（CoreBluetooth 持續掃描、assertion 點亮螢幕）**仍為預期，未實測** |
 | System asleep | user-space process 凍結；CoreBluetooth 不 deliver；**無 supported 機制讓第三方 App 因 BLE presence 喚醒 Mac** |
 | Dark Wake／Power Nap | 只給系統服務；不排程第三方 App |
 | Apple Silicon vs Intel | 結論相同；差在進入睡眠速度 |
