@@ -30,9 +30,11 @@ enum SensitivePatterns {
             + "|iMac(?:\\s+Pro)?|Mac\\s+mini|Mac\\s+Studio|Mac\\s+Pro|Mac"
             + "|Apple\\s+Watch|Watch|AirPods(?:\\s+Pro|\\s+Max)?)\\b"
     )
-    /// A home directory path names the account holder.
+    /// A home directory path names the account holder. The optional leading backslashes matter:
+    /// `JSONEncoder` writes `/` as `\/`, so a pattern anchored on a bare `/Users/` matches a raw
+    /// string but never the export blob it ends up in.
     static let homePath = try! NSRegularExpression(
-        pattern: "/Users/[^/\\s\"]+"
+        pattern: "\\\\?/Users\\\\?/[^/\\s\"\\\\]+"
     )
 
     /// One redaction rule per pattern, applied in this order. Replacement tokens are constants —

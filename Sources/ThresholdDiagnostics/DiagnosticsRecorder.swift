@@ -105,10 +105,32 @@ public actor DiagnosticsRecorder {
     }
 
     /// De-identified JSON export of every event currently in the ring buffer.
+    ///
+    /// Fails closed: the encoded bytes are run through `DiagnosticsExportAnonymityCheck`, and if it
+    /// finds anything `PrivacyFilter` should have removed, this throws
+    /// `DiagnosticsExportError.anonymityViolation` and returns no data at all. An export exists to
+    /// be attached to an issue report, so a leak here is a leak off the machine; refusing to export
+    /// is always the better failure.
     public func export() throws -> Data {
         let envelope = DiagnosticsExportEnvelope(format: "threshold-diagnostics/1", app: appVersion, events: events)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        return try encoder.encode(envelope)
+        let data = try encoder.encode(envelope)
+
+        let findings = DiagnosticsExportAnonymityCheck.findings(in: data)
+        guard findings.isEmpty else {
+            throw DiagnosticsExportError.anonymityViolation(findings)
+        }
+        return data
+    }
+
+    /// Appends an event without privacy filtering, to exercise `export()`'s fail-closed path.
+    ///
+    /// Internal and test-only: no production code may reach the buffer except through `record()`,
+    /// which filters. Kept here rather than behind a `#if DEBUG` so the shipped build compiles the
+    /// same code the tests exercise; `internal` already keeps it out of every other target.
+    func appendUnfilteredForTesting(_ event: DiagnosticEvent) {
+        events.append(event)
+        totalRecorded += 1
     }
 }

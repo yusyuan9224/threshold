@@ -47,4 +47,11 @@ import Foundation
         let json = Data(#"{"note":"/Users/yusyuan/secret.txt"}"#.utf8)
         #expect(!DiagnosticsExportAnonymityCheck.findings(in: json).isEmpty)
     }
+
+    /// `JSONEncoder` writes `/` as `\/`, so this — not the form above — is what a real export
+    /// containing a home path actually looks like.
+    @Test func findsHomePathEscapedTheWayJSONEncoderWritesIt() {
+        let json = Data(#"{"note":"\/Users\/yusyuan\/secret.txt"}"#.utf8)
+        #expect(!DiagnosticsExportAnonymityCheck.findings(in: json).isEmpty)
+    }
 }
