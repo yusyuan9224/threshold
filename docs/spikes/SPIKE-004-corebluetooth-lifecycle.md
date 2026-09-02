@@ -50,11 +50,32 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 
 依輸出檔的 mtime 推算，SPIKE-001／007 的兩回合 `screen-state` 落在 run2 的區間內（約 elapsed 66–186 s 與 242–317 s），期間發生一次約 4 s 的螢幕鎖定與一次約 0.55 s 的顯示器睡眠；該期間 run2 的 `isScanning` 未變、廣播持續。**此對齊來自檔案時間戳推算而非任一工具記錄，且 0.55 s 遠短於本 spike 要求的 10 分鐘**，僅供參考，不作為 display sleep 下掃描是否持續的證據。
 
+### 第二批：display sleep 75 s 下的掃描（2026-09-02 14:48 UTC，自動化執行）
+
+環境同上；螢幕已鎖定、接 AC、system sleep 被阻止。`ble-observe 90`，於第 15 s 以 `pmset displaysleepnow` 讓顯示器睡眠，之後 75 s 顯示器保持睡眠（無人輸入）。
+
+| 10 s 視窗結束 | 廣播筆數 | 活躍 identifier | 最高頻裝置筆數 |
+|---|---|---|---|
+| 10 s（亮） | 140 | 21 | 63 |
+| 20 s（15 s 起睡眠） | 143 | 18 | 60 |
+| 30 s | 159 | 19 | 54 |
+| 40 s | 167 | 17 | 55 |
+| 50 s | 163 | 22 | 59 |
+| 60 s | 166 | 23 | 68 |
+| 70 s | 158 | 20 | 67 |
+| 80 s | 144 | 18 | 54 |
+| 90 s | 148 | 21 | 52 |
+
+- `centralManagerDidUpdateState` 只在啟動時出現一次（`.poweredOn` 於 22 ms）；display sleep 前後**沒有任何** state 事件、沒有 `.resetting`。
+- 9/9 個 tick `isScanning == true`；廣播筆數與活躍 identifier 數在顯示器睡眠前後無可辨差異（無需重呼叫 `scanForPeripherals`）。
+- 限制：75 s，不是規格的 10 min；process 為前景 CLI（非 App Nap 情境）。
+- 檔案：`Tools/spikes/out/spike004-displaysleep.jsonl`、`spike004-cmds.jsonl`（gitignored）。
+
 ### Not yet measured
 
 對應本文件的實驗章節，以下**全部未跑**：
 
-- display sleep 10 min 下掃描是否持續、樣本率是否下降
+- display sleep **10 min** 下掃描是否持續（已有 75 s 證據：持續、樣本率不變）
 - system sleep 10 min（合蓋／`pmset sleepnow`）前後的狀態序列，是否出現 `.resetting`
 - wake 後是否需要重呼叫 `scanForPeripherals`、wake 後首筆 observation 延遲
 - Bluetooth off→on
@@ -64,7 +85,7 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 
 ### Preliminary reading
 
-尚無 GO/NO-GO。成功條件的核心（「display sleep 下掃描持續」「wake 後可用 supported API 恢復」）**一項都沒測到**，因為本回合 Mac 全程清醒。
+尚無 GO/NO-GO。成功條件之一「display sleep 下掃描持續」已有 75 s 的直接證據（持續、無 state 事件、樣本率不變），朝 GO；「system sleep／wake 後可用 supported API 恢復」與 BT off→on、App Nap、24 h 仍未測。`CoreBluetoothScanner.resume()` 目前一律重呼叫 `scanForPeripherals`（保守；重複呼叫無害），待 system sleep 情境後定案。
 
 目前只能說：在 Mac 保持清醒、單一 process 連續執行 10 分鐘的條件下，`CBCentralManager` 的狀態序列是 `.unknown → .poweredOn` 一次到位，之後 60 個 10 s 取樣點全部維持 `.poweredOn` 且 `isScanning == true`，未出現任何降級狀態。這支持 `bluetooth.md` §3 的狀態映射在正常路徑上可用，但**完全不支持** `pause()`／`resume()` 與 `reset(.systemWake)` 的任何設計選擇。
 
