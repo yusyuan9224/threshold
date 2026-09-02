@@ -1,0 +1,43 @@
+# v1.0 Recovery Roadmap (2026-09-02)
+
+Status: Active. Written by the lead agent after the recovery audit; updated as milestones close.
+Goal: the 18 v1.0 conditions recorded in the session `/goal`.
+
+## Recovered state (audit)
+| Branch | Commits vs main | Uncommitted | Build/Test | Decision |
+|---|---|---|---|---|
+| feat/diagnostics | 5 | none | 33 tests green | review → merge |
+| feat/domain-calibration | 4 | none | 84 tests green | review → merge |
+| feat/domain-policy-engine | 1 | PolicyEngine + ActionLedger + 4 test files | 76 tests green | commit → review → merge |
+| feat/bluetooth-scanner | 7 | none | 55 tests green | review → merge |
+| feat/system-integration | 0 | Clock/ (protocol + production clock, no tests) | n/a | add FakeClock + tests → commit |
+| main | — | spike tools (now committed 3c409a4) | — | — |
+
+Spike raw data exists in `Tools/spikes/out/` (ignored) for SPIKE-009/004 (60 s + 600 s scans) and
+SPIKE-001/008 (+ one display-sleep sample touching SPIKE-003/007). Docs still say NOT RUN.
+
+## Task graph
+```text
+T1  Spike evidence → SPIKE docs / README table / bluetooth.md §1 / system-integration.md §1,§4     [docs]
+T2  Review + merge feat/diagnostics                                                                  [merge]
+T3  Review + merge feat/domain-calibration                                                           [merge]
+T4  Commit policy WIP → review → merge feat/domain-policy-engine                                     [merge]
+T5  Review + merge feat/bluetooth-scanner                                                            [merge]
+T6  System: Clock (+FakeClock, tests) → providers (Screen/Session/Power/InputActivity + Fakes)
+    → controllers (Lock/Wake/LoginItem + Fakes) → stores                                            [feat/system-integration]
+T7  Domain MVP 2: ObservationValidator, Signal pipeline, PresenceScorer/Fusion, ProximityEngine,
+    synthetic fixtures + replay harness (T-01..T-16 regression IDs)                                  [feat/domain-engine]
+T8  Runtime: Coordinator actor + CoordinatorEvent + diagnostics bridge; L3 integration tests         [feat/runtime-coordinator]
+T9  App: AppContainer, menu bar, onboarding, device discovery UI, calibration UI, settings,
+    degraded-state UX                                                                                [feat/app]
+T10 Tools/rssi-record (MVP 1B) + user-run field protocol for the remaining SPIKE-009 matrix          [tools]
+T11 Release docs, CHANGELOG, README supported-device matrix, signing/notarization as external blocker [docs]
+T12 Final readiness report                                                                           [report]
+```
+Dependencies: T2–T5 independent of each other; T6/T7 branch from main and run in parallel with merges;
+T8 needs T4+T5+T6+T7 merged; T9 needs T8; T11/T12 last.
+
+## Escalation / external blockers (expected)
+- SPIKE-009 device matrix scenarios that need a human carrying the phone (pocket / 3 m / next room / other
+  Apple ID / Apple Watch / generic beacon). Tooling is provided; results are recorded only when run.
+- Signing / notarization credentials.
