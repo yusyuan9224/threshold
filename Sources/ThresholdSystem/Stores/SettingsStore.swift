@@ -4,9 +4,12 @@ import ThresholdDomain
 
 /// On-disk shape of `PolicySettings`.
 ///
-/// `PolicySettings` is not `Codable`, and making it so would put a persistence concern into the
-/// Domain and freeze its field names into a file format. A separate record keeps the two free to
-/// move independently: renaming a Domain field becomes a mapping change here, not a migration.
+/// `PolicySettings` is `Codable` (proximity-domain.md §6.1), but its synthesized keys are the
+/// Domain's property names. Persisting it directly would freeze those names into a file format and
+/// turn every Domain rename into a migration. This record is the on-disk schema, versioned by
+/// `JSONFileStore`, and maps every `PolicySettings` field explicitly — `JSONFileSettingsStoreTests.everyFieldSurvivesARoundTrip`
+/// round-trips a fully non-default `PolicySettings` so a field added to the Domain type without a
+/// mapping here fails a test rather than silently loading as its default.
 ///
 /// Durations are stored as whole milliseconds, which is finer than any setting the UI exposes.
 struct SettingsRecord: Codable, Sendable, Equatable {

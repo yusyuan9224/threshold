@@ -4,11 +4,15 @@ import IOKit
 /// Strategy ①: ask the display wrangler to idle the display now.
 ///
 /// `IOService:/IOResources/IODisplayWrangler` with the `IORequestIdle` property is a public IOKit
-/// registry path — no private framework, no entitlement, no elevated privileges (ADR-004). With the
-/// system set to require a password immediately after sleep, SPIKE-007 measured the session
-/// reporting locked about 80 ms later (one sample). When the user has *not* set that, this puts the
-/// display to sleep without locking, which is why `MacOSLockController` confirms the outcome
-/// against `ScreenStateProviding` rather than trusting the request.
+/// registry path — no private framework, no entitlement, no elevated privileges (ADR-004).
+/// Evidence status: SPIKE-007 has **not** sampled this exact path yet; its two samples (display
+/// sleep → session locked in 41 ms and 76 ms, "require password immediately") were taken with
+/// `pmset displaysleepnow`, i.e. `PMSetDisplaySleepLockStrategy` below. The two are expected to be
+/// equivalent because `pmset` itself sets the same wrangler property, but until SPIKE-007 measures
+/// it, this strategy's only safety net is confirmation. When the user has *not* set "require
+/// password immediately", either path puts the display to sleep without locking, which is why
+/// `MacOSLockController` confirms the outcome against `ScreenStateProviding` rather than trusting
+/// the request.
 public struct IODisplayWranglerLockStrategy: LockStrategy {
     public let name = "ioRequestIdle"
 

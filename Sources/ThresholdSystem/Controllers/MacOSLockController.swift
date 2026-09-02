@@ -14,7 +14,8 @@ public final class MacOSLockController: LockControlling, Sendable {
     private let confirmTimeout: Duration
     private let pollInterval: Duration
 
-    /// Strategy ① and its fallback, in the order SPIKE-007 has evidence for.
+    /// Strategy ① (IOKit, unsampled by SPIKE-007) then its `pmset` equivalent (the path SPIKE-007's
+    /// two samples used). Order is a spec choice pending SPIKE-007's full run, not an evidence ranking.
     public static let defaultStrategies: [any LockStrategy] = [
         IODisplayWranglerLockStrategy(),
         PMSetDisplaySleepLockStrategy(),
