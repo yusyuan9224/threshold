@@ -1,0 +1,15 @@
+{
+  "final" : {
+    "evidence" : "measuredNear",
+    "presence" : "present"
+  },
+  "scenario" : "signal-spike",
+  "transitions" : [
+    {
+      "at" : 6000,
+      "cause" : "confirmedNear",
+      "from" : "unknown(initial)",
+      "to" : "present"
+    }
+  ]
+}

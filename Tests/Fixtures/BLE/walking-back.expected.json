@@ -1,0 +1,21 @@
+{
+  "final" : {
+    "evidence" : "measuredNear",
+    "presence" : "present"
+  },
+  "scenario" : "walking-back",
+  "transitions" : [
+    {
+      "at" : 4000,
+      "cause" : "measuredFar",
+      "from" : "unknown(initial)",
+      "to" : "away"
+    },
+    {
+      "at" : 25000,
+      "cause" : "confirmedNear",
+      "from" : "away",
+      "to" : "present"
+    }
+  ]
+}
