@@ -248,7 +248,7 @@ enum ActionOutcome: Sendable, Equatable { case completed; case failed(String) }
 
 struct PolicyEngine {                                    // 非 Sendable；只由 Coordinator 持有
     mutating func evaluate(_ snapshot: PolicySnapshot, trigger: PolicyTrigger) -> PolicyOutput
-    mutating func acknowledge(actionID: ActionID, episodeID: EpisodeID, outcome: ActionOutcome, at: MonotonicInstant) -> AcknowledgeResult   // .applied | .stale
+    mutating func acknowledge(actionID: ActionID, episodeID: EpisodeID, outcome: ActionOutcome, at: MonotonicInstant) -> AcknowledgeResult   // .applied | .failed | .stale（.failed：已記錄失敗，attempts 內可立即重試，見 §6.4）
 }
 ```
 決策是 `PolicySnapshot` 的純函式 + 引擎自身 ledger；`trigger` 不參與決策，只進 rationale。任何輸入變化都重評，因此「away 時 screen unknown、100 ms 後 screen 變 unlocked」由 `.screen` trigger 的重評解決，不需 presence 再轉換。
