@@ -22,8 +22,13 @@ public struct ProximityEngine {
     let deviceSet: Set<DeviceID>
 
     var pipelines: [DeviceID: SignalPipeline]
+    /// Reorder reference for `ObservationValidator`: the newest accepted instant for this device,
+    /// which does not move backwards when a reorder inside `maxSkew` is accepted (§1.1 note). Nil
+    /// until the device is first heard, and again after a reset, so the first sample of a new
+    /// episode is never judged against a timestamp from the old one.
     var lastAccepted: [DeviceID: MonotonicInstant] = [:]
-    /// Newest accepted instant per device, or the epoch/reset instant for a device never heard from.
+    /// Silence reference: the same newest accepted instant, but falling back to the epoch or reset
+    /// instant for a device never heard from, so a device that never speaks still goes silent.
     /// Silence and evidence expiry are both measured from here.
     var anchors: [DeviceID: MonotonicInstant] = [:]
     var observationStates: [DeviceID: DeviceObservationState] = [:]
