@@ -89,6 +89,20 @@ public enum PlainLanguage {
         return "Bluetooth unavailable — automatic protection is paused. \(sensorHealth(health))."
     }
 
+    // MARK: - Onboarding discovery
+
+    /// The banner shown on the device-picker step when the scanner cannot currently supply
+    /// advertisements, so a permission or power problem shows a reason instead of a spinner
+    /// that will never resolve (`OnboardingFlow.DiscoveryState.blocked`).
+    public static func discoveryBlocked(_ reason: UnavailableReason) -> String {
+        "Threshold can't look for your device. \(unavailable(reason))."
+    }
+
+    /// Shown alongside the banner only for `.poweredOff`, since that is the one case with a
+    /// single, unambiguous physical action.
+    public static let turnOnBluetoothHint =
+        "Turn on Bluetooth, then Threshold will start looking again automatically."
+
     // MARK: - Calibration gate
 
     public static func notArmed(_ reason: NotArmedReason) -> String {

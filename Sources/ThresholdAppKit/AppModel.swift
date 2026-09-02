@@ -38,6 +38,19 @@ public enum BluetoothRemedy: Sendable, Equatable {
     case openPrivacySettings
     /// Deep link to System Settings › Bluetooth (turn the radio back on).
     case openBluetoothSettings
+
+    /// The one place `UnavailableReason` is mapped onto a remedy, so `AppModel.bluetoothRemedy`
+    /// and `OnboardingFlow.DiscoveryState` (which sees the same reason before a `SensorHealth`
+    /// exists) cannot drift apart.
+    public init?(unavailableReason reason: UnavailableReason) {
+        switch reason {
+        case .unauthorized: self = .openPrivacySettings
+        case .poweredOff: self = .openBluetoothSettings
+        // Nothing in System Settings fixes a Mac without usable Bluetooth, and a scanner that
+        // failed is the app's problem to recover from, not the user's to configure.
+        case .unsupported, .scannerFailed: return nil
+        }
+    }
 }
 
 /// Everything the UI renders, in one `@Observable` object owned by `AppContainer`.
@@ -133,13 +146,7 @@ public final class AppModel {
     /// Where to send the user when Bluetooth is the problem.
     public var bluetoothRemedy: BluetoothRemedy? {
         guard case .unavailable(let reason) = sensorHealth else { return nil }
-        switch reason {
-        case .unauthorized: return .openPrivacySettings
-        case .poweredOff: return .openBluetoothSettings
-        // Nothing in System Settings fixes a Mac without usable Bluetooth, and a scanner that
-        // failed is the app's problem to recover from, not the user's to configure.
-        case .unsupported, .scannerFailed: return nil
-        }
+        return BluetoothRemedy(unavailableReason: reason)
     }
 
     /// Plain-language presence and its provenance, for the two lines under the status.

@@ -45,6 +45,25 @@ public final class OnboardingFlow {
         case finished
     }
 
+    /// What the device-picker step should show, derived from the scanner's `sensorStates`
+    /// channel while discovery is running.
+    ///
+    /// This exists because the step's own spinner ("Looking for devices…") cannot tell the
+    /// difference between "no advertisements yet" and "no advertisements ever, because
+    /// CoreBluetooth just reported `.unauthorized`" — and left alone, the second one renders
+    /// as the first forever. `blocked` is that distinction made visible, with the same reason
+    /// and remedy the main menu's `DegradedBanner` already shows for a degraded sensor.
+    public enum DiscoveryState: Sendable, Equatable {
+        /// Not currently scanning.
+        case idle
+        /// Scanning, the sensor is healthy or between states, and no device has appeared yet.
+        case scanning
+        /// The scanner cannot currently supply advertisements at all.
+        case blocked(reason: UnavailableReason, canOpenSettings: Bool)
+        /// Scanning, the sensor is healthy, and at least one device has appeared.
+        case found
+    }
+
     public private(set) var step: Step = .bluetooth
     public private(set) var table = DiscoveryTable()
     public private(set) var isScanning = false
@@ -52,6 +71,9 @@ public final class OnboardingFlow {
     /// Whether calibration ran to a saved profile, as opposed to being skipped.
     public private(set) var didCalibrate = false
     public private(set) var errorMessage: String?
+    /// The most recent status fed in by `sensorStatusChanged`, `nil` until the first one
+    /// arrives for this discovery session.
+    public private(set) var lastSensorStatus: SensorStatus?
 
     /// The name the user is giving the device. Pre-filled from the advertisement when there
     /// is one, but always editable: the advertised name is a hint, and `RegisteredDevice`
@@ -91,6 +113,19 @@ public final class OnboardingFlow {
         selection != nil && !trimmedDeviceName.isEmpty
     }
 
+    /// See `DiscoveryState`. Not scanning at all reads as `.idle` regardless of the last
+    /// status this instance ever saw, so leaving the picker and coming back never shows a
+    /// banner left over from a previous visit.
+    public var discoveryState: DiscoveryState {
+        guard isScanning else { return .idle }
+        switch lastSensorStatus {
+        case nil, .available, .degraded:
+            return rows.isEmpty ? .scanning : .found
+        case .unavailable(let reason):
+            return .blocked(reason: reason, canOpenSettings: BluetoothRemedy(unavailableReason: reason) != nil)
+        }
+    }
+
     // MARK: - Transitions
 
     /// Step 1 → 2. This is the call that may raise the system Bluetooth permission prompt.
@@ -98,6 +133,7 @@ public final class OnboardingFlow {
         guard step == .bluetooth || step == .pickDevice else { return }
         errorMessage = nil
         table.reset()
+        lastSensorStatus = nil
         isScanning = true
         step = .pickDevice
         actions?.startDiscovery()
@@ -106,6 +142,23 @@ public final class OnboardingFlow {
     public func discovered(_ device: DiscoveredDevice) {
         guard isScanning else { return }
         table.ingest(device)
+    }
+
+    /// Fed by the container from the scanner's `sensorStates` channel while onboarding is
+    /// alive. Only changes `discoveryState`; presence/selection are untouched because this can
+    /// arrive on any step, not only `.pickDevice`.
+    ///
+    /// A recovery from `.blocked` while still scanning asks for a fresh discovery session
+    /// rather than trusting that the CoreBluetooth session already running repairs itself —
+    /// cheap insurance against a session CoreBluetooth silently dropped while the radio was
+    /// off or unauthorized.
+    public func sensorStatusChanged(_ status: SensorStatus) {
+        let wasBlocked: Bool
+        if case .unavailable = lastSensorStatus { wasBlocked = true } else { wasBlocked = false }
+        lastSensorStatus = status
+        if wasBlocked, status == .available, isScanning {
+            actions?.startDiscovery()
+        }
     }
 
     public func select(_ id: DeviceID) {

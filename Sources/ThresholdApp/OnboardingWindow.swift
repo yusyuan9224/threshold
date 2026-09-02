@@ -157,7 +157,10 @@ private struct OnboardingSteps: View {
 
     private var deviceList: some View {
         Group {
-            if flow.rows.isEmpty {
+            switch flow.discoveryState {
+            case .blocked(let reason, let canOpenSettings):
+                discoveryBlockedView(reason: reason, canOpenSettings: canOpenSettings)
+            case .idle, .scanning:
                 VStack(alignment: .leading, spacing: 6) {
                     ProgressView().controlSize(.small)
                     Text("Looking for devices that advertise a name…")
@@ -165,7 +168,7 @@ private struct OnboardingSteps: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 180, alignment: .leading)
-            } else {
+            case .found:
                 List(flow.rows, selection: Binding(
                     get: { flow.selection },
                     set: { if let id = $0 { flow.select(id) } }
@@ -175,6 +178,26 @@ private struct OnboardingSteps: View {
                 .frame(height: 180)
             }
         }
+    }
+
+    /// The same banner + settings deep link `MenuContentView` shows for a degraded sensor
+    /// (`SharedViews.DegradedBanner`), plus a `.poweredOff`-specific hint: everything else the
+    /// user could try is either not their problem to fix (`.unsupported`, `.scannerFailed`) or
+    /// already covered by the settings button (`.unauthorized`).
+    private func discoveryBlockedView(reason: UnavailableReason, canOpenSettings: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            DegradedBanner(
+                message: PlainLanguage.discoveryBlocked(reason),
+                remedy: canOpenSettings ? BluetoothRemedy(unavailableReason: reason) : nil
+            )
+            if reason == .poweredOff {
+                Label(PlainLanguage.turnOnBluetoothHint, systemImage: "power")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
     }
 
     // MARK: - Step 3

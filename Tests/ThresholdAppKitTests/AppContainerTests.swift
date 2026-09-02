@@ -317,6 +317,40 @@ import ThresholdSystem
         container.stop()
     }
 
+    /// HIGH fix: the container's sensor channel must also reach onboarding, so the device
+    /// picker can show a `.blocked` banner instead of spinning on "Looking for devices…"
+    /// forever when CoreBluetooth reports `.unauthorized` or `.poweredOff` after "Start
+    /// scanning" — and must ask the scanner for a fresh discovery session once it recovers.
+    @Test func onboardingDiscoveryStateFollowsTheRealSensorChannel() async {
+        let scanner = FakeScanner()
+        let container = AppContainer.makeForTesting(scanner: scanner)
+        container.start()
+        let flow = container.makeOnboardingFlow()
+
+        flow.startScanning()
+        #expect(scanner.discoverCallCount == 1)
+
+        scanner.emit(sensor: .unavailable(.unauthorized), at: Fixtures.instant(seconds: 1))
+        let unauthorizedBlocked = await waitUntil {
+            flow.discoveryState == .blocked(reason: .unauthorized, canOpenSettings: true)
+        }
+        #expect(unauthorizedBlocked)
+
+        scanner.emit(sensor: .unavailable(.poweredOff), at: Fixtures.instant(seconds: 2))
+        let poweredOffBlocked = await waitUntil {
+            flow.discoveryState == .blocked(reason: .poweredOff, canOpenSettings: true)
+        }
+        #expect(poweredOffBlocked)
+
+        scanner.emit(sensor: .available, at: Fixtures.instant(seconds: 3))
+        let recovered = await waitUntil { flow.discoveryState == .scanning }
+        #expect(recovered)
+        // Recovering from blocked asked for a fresh discovery session.
+        let restarted = await waitUntil { scanner.discoverCallCount == 2 }
+        #expect(restarted)
+        container.stop()
+    }
+
     @Test func calibrateFromTheMenuNeedsATrustedDevice() {
         let container = AppContainer.makeForTesting()
         container.start()

@@ -321,9 +321,15 @@ public final class AppContainer {
     }
 
     /// Feeds the sensor axis until the Coordinator takes over this subscription.
+    ///
+    /// Also mirrors every status to `onboarding`, so the device-picker step can tell "still
+    /// looking" apart from "Bluetooth just reported `.unauthorized`" instead of spinning
+    /// forever (`OnboardingFlow.discoveryState`). Harmless when onboarding is `nil` or on a
+    /// different step: `sensorStatusChanged` only ever updates its own state.
     private func runSensorChannel() async {
         for await status in scanner.sensorStates {
             model.sensorStatusChanged(status.value)
+            onboarding?.sensorStatusChanged(status.value)
             await recorder.record(
                 category: .bluetoothLifecycle,
                 message: "sensor status \(status.value)",

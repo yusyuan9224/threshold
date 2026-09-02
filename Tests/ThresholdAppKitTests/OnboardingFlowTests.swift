@@ -160,6 +160,113 @@ import ThresholdSystem
         flow.skipCalibration()
         #expect(flow.step == .bluetooth)
     }
+
+    // MARK: - Discovery state (HIGH: endless spinner on a blocked sensor)
+
+    @Test func discoveryStateIsIdleBeforeScanningStarts() {
+        let (flow, _) = makeFlow()
+        #expect(flow.discoveryState == .idle)
+    }
+
+    @Test func discoveryStateIsScanningWithNoDevicesYetAndNoSensorStatus() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        #expect(flow.discoveryState == .scanning)
+    }
+
+    @Test func discoveryStateIsFoundOnceADeviceHasAppearedWhileHealthy() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.available)
+        flow.discovered(Fixtures.discovered(Fixtures.deviceA, name: "Phone", rssi: -50, atSecond: 0))
+        #expect(flow.discoveryState == .found)
+    }
+
+    /// The bug this fixes: CoreBluetooth reports `.unauthorized` after "Start scanning" and the
+    /// picker must say so instead of spinning on "Looking for devices…" forever.
+    @Test func unauthorizedBlocksDiscoveryAndOffersSettings() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.unavailable(.unauthorized))
+        #expect(flow.discoveryState == .blocked(reason: .unauthorized, canOpenSettings: true))
+    }
+
+    @Test func poweredOffBlocksDiscoveryAndOffersSettings() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.unavailable(.poweredOff))
+        #expect(flow.discoveryState == .blocked(reason: .poweredOff, canOpenSettings: true))
+    }
+
+    /// `.unsupported` and `.scannerFailed` are still reported as blocked, but there is nowhere
+    /// in System Settings that fixes either, so the picker must not offer a settings button.
+    @Test func unsupportedBlocksDiscoveryWithoutOfferingSettings() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.unavailable(.unsupported))
+        #expect(flow.discoveryState == .blocked(reason: .unsupported, canOpenSettings: false))
+    }
+
+    @Test func discoverySelfHealsOnceTheSensorReturnsToAvailable() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.unavailable(.poweredOff))
+        #expect(flow.discoveryState == .blocked(reason: .poweredOff, canOpenSettings: true))
+        flow.sensorStatusChanged(.available)
+        #expect(flow.discoveryState == .scanning)
+    }
+
+    /// Recovering from a block asks for a fresh discovery session rather than trusting the one
+    /// already running to have survived the radio going away.
+    @Test func discoveryRestartsWhenTheSensorBecomesAvailableAfterBeingBlocked() {
+        let (flow, actions) = makeFlow()
+        flow.startScanning()
+        #expect(actions.startDiscoveryCount == 1)
+        flow.sensorStatusChanged(.unavailable(.poweredOff))
+        #expect(actions.startDiscoveryCount == 1)
+        flow.sensorStatusChanged(.available)
+        #expect(actions.startDiscoveryCount == 2)
+    }
+
+    /// Recovering while a device was already selected must not re-ask for discovery a second
+    /// time on the next unrelated `.available` event — only an actual recovery from `.blocked`
+    /// counts.
+    @Test func repeatedAvailableStatusesDoNotRepeatedlyRestartDiscovery() {
+        let (flow, actions) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.available)
+        flow.sensorStatusChanged(.available)
+        #expect(actions.startDiscoveryCount == 1)
+    }
+
+    /// A status delivered while onboarding sits on an unrelated step (e.g. calibration) must
+    /// not resurrect discovery.
+    @Test func sensorStatusOutsideDiscoveryDoesNotRestartIt() {
+        let (flow, actions) = makeFlow()
+        flow.startScanning()
+        flow.discovered(Fixtures.discovered(Fixtures.deviceA, name: "Phone", rssi: -50, atSecond: 0))
+        flow.select(Fixtures.deviceA)
+        flow.registerSelectedDevice()
+        #expect(flow.step == .calibrate)
+        #expect(flow.isScanning == false)
+
+        flow.sensorStatusChanged(.unavailable(.poweredOff))
+        flow.sensorStatusChanged(.available)
+        #expect(actions.startDiscoveryCount == 1)
+        #expect(flow.discoveryState == .idle)
+    }
+
+    /// A leftover blocked status must not resurface across a second "Start scanning" on the
+    /// same flow instance (e.g. after the user turns Bluetooth on and presses it again).
+    @Test func restartingScanningClearsAPreviouslyBlockedStatus() {
+        let (flow, _) = makeFlow()
+        flow.startScanning()
+        flow.sensorStatusChanged(.unavailable(.poweredOff))
+        #expect(flow.discoveryState == .blocked(reason: .poweredOff, canOpenSettings: true))
+
+        flow.startScanning()
+        #expect(flow.discoveryState == .scanning)
+    }
 }
 
 @MainActor
