@@ -13,6 +13,15 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "ThresholdApp", targets: ["ThresholdApp"]),
+        // Library products exist so maintained tools under Tools/ can depend on this
+        // package by path and drive the *production* adapters rather than a parallel
+        // copy of them (Tools/rssi-record uses ThresholdBluetooth.CoreBluetoothScanner,
+        // so its field evidence comes through the code the app ships).
+        // Only the two targets a tool legitimately needs are exported; Runtime and
+        // System stay internal so nothing outside the package can bypass the
+        // composition root.
+        .library(name: "ThresholdDomain", targets: ["ThresholdDomain"]),
+        .library(name: "ThresholdBluetooth", targets: ["ThresholdBluetooth"]),
     ],
     targets: [
         .target(name: "ThresholdDomain"),

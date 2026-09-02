@@ -7,6 +7,8 @@ import CoreGraphics
 import Carbon.HIToolbox
 
 let seconds = Double(CommandLine.arguments.dropFirst().first ?? "90") ?? 90
+// kCGAnyInputEventType (~0). Using `.null` (0) was the SPIKE-008 probe defect of 2026-09-02.
+let anyInput = CGEventType(rawValue: ~0)!
 let t0 = ContinuousClock.now
 func ms() -> Int64 { let d = ContinuousClock.now - t0; let (s, a) = d.components; return s * 1000 + a / 1_000_000_000_000_000 }
 let lock = NSLock()
@@ -53,8 +55,8 @@ timer.setEventHandler {
         if sec != lastSecure { lastSecure = sec; emit(["kind": "secureInput", "enabled": sec]) }
     }
     if tick % 10 == 0 {
-        let hid = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .null)
-        let comb = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .null)
+        let hid = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: anyInput)
+        let comb = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
         // log every 5 s, or whenever idle resets (activity)
         if tick % 100 == 0 || hid < lastIdleHID || comb < lastIdleCombined {
             emit(["kind": "idle", "hid": hid, "combined": comb])
