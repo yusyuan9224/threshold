@@ -36,7 +36,7 @@ protocol ScreenStateProviding: Sendable {
 
 | 狀態 | 預期（待 SPIKE-003／004 驗證） |
 |---|---|
-| Display asleep、system awake | process 執行、CoreBluetooth 持續掃描、`IOPMAssertionDeclareUserActivity` 可點亮螢幕。**實測（SPIKE-007，n=1，2026-09-02）**：在「睡眠後立即要求密碼」下，顯示器睡眠後 76 ms `CGSSessionScreenIsLocked` 轉 `1`、156 ms `com.apple.screenIsLocked` 抵達，無需權限。**實測（SPIKE-003，n=3，2026-09-02）**：鎖定 + 顯示器睡眠下 `IOPMAssertionDeclareUserActivity` 3/3 於 ≤ 150 ms 點亮、免權限、鎖定不變，登入畫面約 33 s 無輸入後再度熄滅。CoreBluetooth 在 display sleep 下是否持續掃描**仍未實測**（SPIKE-004） |
+| Display asleep、system awake | process 執行、CoreBluetooth 持續掃描、`IOPMAssertionDeclareUserActivity` 可點亮螢幕。**實測（SPIKE-007，n=1，2026-09-02）**：在「睡眠後立即要求密碼」下，顯示器睡眠後 76 ms `CGSSessionScreenIsLocked` 轉 `1`、156 ms `com.apple.screenIsLocked` 抵達，無需權限。**實測（SPIKE-003，n=3，2026-09-02）**：鎖定 + 顯示器睡眠下 `IOPMAssertionDeclareUserActivity` 3/3 於 ≤ 150 ms 點亮、免權限、鎖定不變，登入畫面約 33 s 無輸入後再度熄滅。**實測（SPIKE-004，75 s，2026-09-02）**：display sleep 下 CoreBluetooth 掃描持續、無 state 事件、樣本率不變 |
 | System asleep | user-space process 凍結；CoreBluetooth 不 deliver；**無 supported 機制讓第三方 App 因 BLE presence 喚醒 Mac** |
 | Dark Wake／Power Nap | 只給系統服務；不排程第三方 App |
 | Apple Silicon vs Intel | 結論相同；差在進入睡眠速度 |
