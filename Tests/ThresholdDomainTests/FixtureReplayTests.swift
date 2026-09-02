@@ -19,6 +19,15 @@ struct FixtureReplayTests {
         #expect(try Fixtures.replay(name) == Fixtures.replay(name))
     }
 
+    @Test func everyRequiredScenarioIsPresent() throws {
+        // Also the guard on the directory scan: if the bundle went missing, `names` would be empty
+        // and every parameterised test in this suite would vacuously pass.
+        #expect(!Fixtures.names.isEmpty)
+        for scenario in Fixtures.requiredScenarios {
+            #expect(Fixtures.names.contains(scenario), "missing required fixture \(scenario)")
+        }
+    }
+
     @Test func bundleResourcesResolve() throws {
         let directory = try Fixtures.directory()
         for name in Fixtures.names {

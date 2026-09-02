@@ -36,18 +36,22 @@ struct FixtureMeta: Decodable {
 /// Every line after the first. `t` is milliseconds relative to t0.
 struct FixtureLine: Decodable {
     let kind: String
-    let t: Int64
+    let t: Int64?
     let device: String?
     let rssi: Int?
     let status: String?
     let reason: String?
 
-    var instant: MonotonicInstant { MonotonicInstant(nanoseconds: t * 1_000_000) }
+    var instant: MonotonicInstant { MonotonicInstant(nanoseconds: (t ?? 0) * 1_000_000) }
 
-    func engineInput() throws -> EngineInput {
+    /// `nil` for a line that is not an input. `Tools/rssi-record` closes a recording with a
+    /// `summary` line of capture metrics, which the replay skips rather than rejects.
+    func engineInput() throws -> EngineInput? {
         switch kind {
+        case "summary":
+            return nil
         case "observation":
-            guard let device, let rssi else { throw FixtureError.malformed("observation without device/rssi at t=\(t)") }
+            guard let device, let rssi else { throw FixtureError.malformed("observation without device/rssi at t=\(timeLabel)") }
             return .observation(BLEObservation(device: DeviceID(device), at: instant, rssi: rssi))
         case "tick":
             return .tick(at: instant)
@@ -55,32 +59,31 @@ struct FixtureLine: Decodable {
             return .sensor(try sensorStatus(), at: instant)
         case "reset":
             guard let reason, let parsed = ResetReason(rawValue: reason) else {
-                throw FixtureError.malformed("unknown reset reason \(reason ?? "nil") at t=\(t)")
+                throw FixtureError.malformed("unknown reset reason \(reason ?? "nil") at t=\(timeLabel)")
             }
             return .reset(parsed, at: instant)
         default:
-            throw FixtureError.malformed("unknown line kind \(kind) at t=\(t)")
+            throw FixtureError.malformed("unknown line kind \(kind) at t=\(timeLabel)")
         }
     }
 
+    /// `available`, or `<case>.<reason.rawValue>` — the exact spellings `Tools/rssi-record` writes.
+    /// Pinned by hand rather than derived from `Codable` synthesis, so the file format cannot drift
+    /// when the Domain's enums change shape.
     private func sensorStatus() throws -> SensorStatus {
         switch status {
-        case "available":
-            return .available
-        case "degraded":
-            guard let reason, let parsed = DegradedReason(rawValue: reason) else {
-                throw FixtureError.malformed("unknown degraded reason at t=\(t)")
-            }
-            return .degraded(parsed)
-        case "unavailable":
-            guard let reason, let parsed = UnavailableReason(rawValue: reason) else {
-                throw FixtureError.malformed("unknown unavailable reason at t=\(t)")
-            }
-            return .unavailable(parsed)
-        default:
-            throw FixtureError.malformed("unknown sensor status \(status ?? "nil") at t=\(t)")
+        case "available": return .available
+        case "degraded.resetting": return .degraded(.resetting)
+        case "degraded.scanInterrupted": return .degraded(.scanInterrupted)
+        case "unavailable.poweredOff": return .unavailable(.poweredOff)
+        case "unavailable.unauthorized": return .unavailable(.unauthorized)
+        case "unavailable.unsupported": return .unavailable(.unsupported)
+        case "unavailable.scannerFailed": return .unavailable(.scannerFailed)
+        default: throw FixtureError.malformed("unknown sensor status \(status ?? "nil") at t=\(timeLabel)")
         }
     }
+
+    private var timeLabel: String { t.map(String.init) ?? "unset" }
 }
 
 /// Golden file: the presence-axis transitions the engine must produce for this recording.
@@ -144,7 +147,18 @@ func goldenEvidenceLabel(_ evidence: PresenceEvidence) -> String {
 
 /// Every fixture in `Tests/Fixtures/BLE`, by scenario name.
 enum Fixtures {
-    static let names = [
+    /// Discovered from the bundle rather than hard-coded, so a recording dropped in by
+    /// `Tools/rssi-record` is replayed without anyone remembering to add it to a list.
+    /// `requiredScenarios` is the guard against this silently finding nothing.
+    static let names: [String] = {
+        guard let directory = try? directory(),
+              let entries = try? FileManager.default.contentsOfDirectory(atPath: directory.path)
+        else { return [] }
+        return entries.filter { $0.hasSuffix(".jsonl") }.map { String($0.dropLast(".jsonl".count)) }.sorted()
+    }()
+
+    /// The minimum regression set named by docs/specs/testing.md §3.
+    static let requiredScenarios = [
         "bluetooth-off",
         "departure-then-silent",
         "device-lost",
@@ -179,7 +193,7 @@ enum Fixtures {
         let meta = try decoder.decode(FixtureMeta.self, from: Data(first.utf8))
         guard meta.kind == "meta" else { throw FixtureError.malformed("\(name) does not start with a meta line") }
 
-        let inputs = try lines.dropFirst().map { line in
+        let inputs = try lines.dropFirst().compactMap { line in
             try decoder.decode(FixtureLine.self, from: Data(line.utf8)).engineInput()
         }
         return (meta, inputs)

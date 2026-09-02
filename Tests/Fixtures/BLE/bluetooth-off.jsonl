@@ -20,7 +20,7 @@
 {"kind":"observation","t":17000,"device":"device-A","rssi":-45}
 {"kind":"observation","t":18000,"device":"device-A","rssi":-45}
 {"kind":"observation","t":19000,"device":"device-A","rssi":-45}
-{"kind":"sensor","t":25000,"status":"unavailable","reason":"poweredOff"}
+{"kind":"sensor","t":25000,"status":"unavailable.poweredOff"}
 {"kind":"tick","t":35000}
 {"kind":"tick","t":49000}
 {"kind":"tick","t":60000}
