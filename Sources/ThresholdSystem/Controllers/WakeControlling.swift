@@ -18,9 +18,16 @@ public enum WakeError: Error, Equatable, Sendable {
 /// Production `WakeControlling`.
 ///
 /// `IOPMAssertionDeclareUserActivity` with `kIOPMUserActiveLocal` is the public, unprivileged way to
-/// tell power management that the local user is present, which lights the display. The assertion is
-/// short-lived and released by the system, so nothing here has to be torn down; each call takes a
-/// fresh assertion id.
+/// tell power management that the local user is present, which lights the display. SPIKE-003
+/// measured it lighting a sleeping display on a locked Mac three times out of three, in under
+/// 150 ms each time, with no permission prompt, and the login window then staying up for about 33 s
+/// without input. The spike is still PARTIAL because that is far short of the fifty runs the spec
+/// asks for.
+///
+/// Nothing is released. Despite the name, this call does not hand back a held assertion: it
+/// declares a moment of user activity and power management ages it out on its own. Releasing the id
+/// would be meaningless, and holding one would keep the display awake, which is not what
+/// "wake on return" means.
 public final class MacOSWakeController: WakeControlling, Sendable {
     /// Shown in `pmset -g assertions`, so it names the app rather than the internal call site.
     private let reason: String

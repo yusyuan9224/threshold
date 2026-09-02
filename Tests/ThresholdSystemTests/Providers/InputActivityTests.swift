@@ -2,9 +2,9 @@ import Testing
 import ThresholdDomain
 @testable import ThresholdSystem
 
-/// SPIKE-008 has not run, so `inputIdle` must be `nil` unless a build explicitly opts in and the
-/// session is demonstrably the console session with an unlocked screen
-/// (docs/specs/system-integration.md §1, security.md §2 rule 3).
+/// SPIKE-008 is a CONDITIONAL GO: `.hidSystemState` is trustworthy on an unlocked, active console
+/// session and meaningless anywhere else, so `inputIdle` must be `nil` outside those conditions
+/// (docs/spikes/SPIKE-008-input-idle-detection.md, security.md §2 rule 3).
 @Suite struct InputActivityGateTests {
     @Test func disabledNeverSamples() {
         #expect(InputActivityGate.shouldSample(isEnabled: false, session: .active, screen: .unlocked) == false)
@@ -14,6 +14,8 @@ import ThresholdDomain
         #expect(InputActivityGate.shouldSample(isEnabled: true, session: .active, screen: .unlocked))
     }
 
+    /// A keystroke at the lock screen does not reset `.hidSystemState`, so a reading taken there
+    /// describes nothing the user just did.
     @Test func lockedOrUnknownScreenBlocksSampling() {
         #expect(InputActivityGate.shouldSample(isEnabled: true, session: .active, screen: .locked) == false)
         #expect(InputActivityGate.shouldSample(isEnabled: true, session: .active, screen: .unknown) == false)
@@ -34,12 +36,19 @@ import ThresholdDomain
         )
     }
 
-    @Test func defaultsToDisabled() {
-        let p = MacOSInputActivityProvider(
+    @Test func samplingIsOnByDefault() {
+        // Compared against an explicitly enabled provider rather than asserted non-nil, so the test
+        // states the default without also asserting that this machine has a readable event source.
+        let byDefault = MacOSInputActivityProvider(
             session: FakeSessionStateProvider(initial: .active),
             screen: FakeScreenStateProvider(initial: .unlocked)
-        )
-        #expect(p.current == nil)
+        ).current
+        let explicitlyEnabled = provider(enabled: true, session: .active, screen: .unlocked).current
+        #expect((byDefault == nil) == (explicitlyEnabled == nil))
+    }
+
+    @Test func theToggleStillTurnsSamplingOff() {
+        #expect(provider(enabled: false, session: .active, screen: .unlocked).current == nil)
     }
 
     @Test func gatedOffReturnsNil() {
