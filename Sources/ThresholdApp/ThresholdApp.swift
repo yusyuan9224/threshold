@@ -37,11 +37,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Controller work already in flight is left alone: a lock that has been issued should
     /// finish (architecture.md §5.4).
+    static let shutdownDeadline: Duration = .seconds(5)
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let container = Self.container else { return .terminateNow }
         Self.container = nil
+        // Defensive deadline: nothing in `Coordinator.stop()` awaits I/O today, but a future
+        // await inside actor isolation must never be able to turn quitting into a hang. Whichever
+        // finishes first — the orderly stop or the deadline — releases termination; the other
+        // branch is cancelled. A stop cut short by the deadline is only ever a slower exit,
+        // never a security regression: an issued lock completes regardless (architecture.md §5.4).
         Task {
-            await container.stop()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await container.stop() }
+                group.addTask { try? await Task.sleep(for: Self.shutdownDeadline) }
+                await group.next()
+                group.cancelAll()
+            }
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
