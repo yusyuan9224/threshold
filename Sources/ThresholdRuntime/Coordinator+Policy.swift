@@ -8,11 +8,21 @@ extension Coordinator {
     /// evaluates it, and dispatches whatever it proposes.
     ///
     /// `inputIdle` is polled here rather than cached: no system signal announces the *start* of
-    /// idleness, so the only correct value is the one read at decision time.
+    /// idleness, so the only correct value is the one read at decision time. `power` is refreshed
+    /// the same way and for the same reason, discovered the hard way: a real departure/return on
+    /// 2026-09-03 measured `NSWorkspace.screensDidSleepNotification` / `screensDidWakeNotification`
+    /// firing 0 times across 14 real display-sleep/wake cycles on this Mac (macOS 26.6.2), so the
+    /// `.power` case in `handle(_:)` never ran and `power` stayed `.awake` through a real lock —
+    /// permanently failing the wake precondition even after presence correctly returned to
+    /// `.present`. `MacOSPowerStateProvider.current` already falls back to a live `CGDisplayIsAsleep`
+    /// query for everything but `.systemAsleep` (which it cannot observe once read, so the cached
+    /// value stands); polling it here instead of trusting the notification-fed cache costs nothing
+    /// on every other trigger and fixes this one.
     func evaluate(trigger: PolicyTrigger) {
         guard !isStopped else { return }
         let now = clock.now()
         let proximity = engine.snapshot
+        power = powerProvider.current
 
         let snapshot = PolicySnapshot(
             proximity: proximity,

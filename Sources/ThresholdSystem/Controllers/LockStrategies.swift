@@ -1,18 +1,21 @@
 import Foundation
 import IOKit
 
-/// Strategy ①: ask the display wrangler to idle the display now.
+/// Strategy: ask the display wrangler to idle the display now.
 ///
 /// `IOService:/IOResources/IODisplayWrangler` with the `IORequestIdle` property is a public IOKit
 /// registry path — no private framework, no entitlement, no elevated privileges (ADR-004).
-/// Evidence status: SPIKE-007 has **not** sampled this exact path yet; its two samples (display
-/// sleep → session locked in 41 ms and 76 ms, "require password immediately") were taken with
-/// `pmset displaysleepnow`, i.e. `PMSetDisplaySleepLockStrategy` below. The two are expected to be
-/// equivalent because `pmset` itself sets the same wrangler property, but until SPIKE-007 measures
-/// it, this strategy's only safety net is confirmation. When the user has *not* set "require
-/// password immediately", either path puts the display to sleep without locking, which is why
-/// `MacOSLockController` confirms the outcome against `ScreenStateProviding` rather than trusting
-/// the request.
+/// Evidence status (SPIKE-007, 2026-09-03, isolated real-hardware test on a MacBook Pro `Mac17,2` /
+/// macOS 26.6.2): `IORegistryEntrySetCFProperty(IORequestIdle)` returns `KERN_SUCCESS`, but the
+/// display did **not** sleep within the following 9 s (`screen-state` recorded no `asleep: true`).
+/// This strategy therefore does not throw — `MacOSLockController.requestLock()` treats it as
+/// accepted and never tries the next strategy — while having no observed effect, so confirmation
+/// always times out. It is kept as a fallback (not removed) because a different macOS version or
+/// Mac model may honor it; `PMSetDisplaySleepLockStrategy` below is the default primary because it
+/// is the one with real-world evidence (`docs/spikes/SPIKE-007-lock-method.md`: 16/16 successful
+/// locks, 41–337 ms). When the user has *not* set "require password immediately", either path puts
+/// the display to sleep without locking, which is why `MacOSLockController` confirms the outcome
+/// against `ScreenStateProviding` rather than trusting the request.
 public struct IODisplayWranglerLockStrategy: LockStrategy {
     public let name = "ioRequestIdle"
 
@@ -35,11 +38,14 @@ public struct IODisplayWranglerLockStrategy: LockStrategy {
     private static let requestIdleProperty = "IORequestIdle"
 }
 
-/// Strategy ① fallback: `pmset displaysleepnow`.
+/// Default primary strategy: `pmset displaysleepnow`.
 ///
-/// Same effect through a documented, unprivileged command-line tool, for machines where the display
-/// wrangler is not in the registry. Kept second because spawning a process is slower and coarser
-/// than setting the registry property directly.
+/// Same effect through a documented, unprivileged command-line tool. `docs/spikes/SPIKE-007-lock-method.md`
+/// has 16 real-hardware samples of this exact call, all successful, 41–337 ms from display sleep to
+/// `com.apple.screenIsLocked`. Ranked first in `MacOSLockController.defaultStrategies` for that
+/// reason — the IOKit strategy above is unproven on some hardware and its raw registry write costs
+/// less than spawning a process, but a strategy with no evidence it works should not sit ahead of
+/// one with 16/16.
 public struct PMSetDisplaySleepLockStrategy: LockStrategy {
     public let name = "pmsetDisplaySleepNow"
 

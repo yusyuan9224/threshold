@@ -1,5 +1,5 @@
 # SPIKE-007 Lock Method
-Status: PARTIAL（路徑①傾向 GO，n=16／50）— 2026-09-03　Priority: 2（MVP 3 前）
+Status: PARTIAL（pmset 路徑 GO n=16／50；IOKit 路徑 NO-GO 此機型；預設順序已修正並實機驗證）— 2026-09-03　Priority: 2（MVP 3 前）
 
 ## Question
 四條鎖定路徑各自的可靠度、延遲、權限需求與副作用：① displaySleep（IOKit `IORequestIdle`）+「睡眠後立即要求密碼」；② ⌃⌘Q via `CGEvent`（需 Accessibility）；③ `shortcuts run "Lock Screen"`（未文件化）；④ 啟動 `ScreenSaverEngine`。
@@ -86,3 +86,17 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 ### Preliminary reading（更新）
 
 16 個樣本、0 失敗、延遲全部 < 350 ms，遠低於成功條件的 2 s 上限。樣本數雖未達規格的 50 次，但延遲分佈很窄（41–337 ms，中位數附近集中），沒有出現任何離群或失敗案例，**路徑①已有足夠證據支持 GO 的初步判斷**，正式定案仍建議補到規格要求的樣本數，並涵蓋「要求密碼」的另外兩種設定。
+
+### 第四批：實機事故與修復（2026-09-03 晚間）
+
+一次真實的離開測試（真實 iPhone、真實 `MacOSLockController`）暴露了路徑選擇的缺陷：預設策略順序把未經隔離驗證的 IOKit `IORequestIdle` 排在 `pmset` 之前。隔離測試顯示 `IORegistryEntrySetCFProperty(IORequestIdle)` 在這台 Mac（`Mac17,2`／macOS 26.6.2）上回傳 `KERN_SUCCESS` 但**顯示器未實際睡眠**（9 s 觀察，0 次 `asleep: true`）。因為 `MacOSLockController.requestLock()` 在第一個「不丟例外」的策略就停止嘗試，這個回報成功卻無效的路徑導致真實離開測試連續 3 次鎖定 dispatch 全部逾時放棄（`gaveUp`），Auto Lock 完全失效。
+
+修法：對調 `MacOSLockController.defaultStrategies` 順序，`pmset displaysleepnow`（已有 16/16 成功樣本）改為預設優先，IOKit 路徑退為第二選擇。修復後以真實裝置重測：lock dispatch → `outcome applied`，成功。
+
+### 判定更新
+
+路徑①的**兩種實作**現在分開判定：
+- `PMSetDisplaySleepLockStrategy`：**GO**（16/16 成功，41–337 ms，且已通過一次真實端到端驗證）
+- `IODisplayWranglerLockStrategy`（IOKit `IORequestIdle`）：**NO-GO（此機型／OS）**——回報成功但無實際效果；保留為次要退回選項，因不同機型／OS 版本行為可能不同，但不得再作為預設第一選擇
+
+MacOSLockController 的策略順序現已依此判定調整（`Sources/ThresholdSystem/Controllers/MacOSLockController.swift`）。

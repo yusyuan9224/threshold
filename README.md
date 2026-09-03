@@ -86,7 +86,7 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 | SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：iPhone CONDITIONAL GO；Watch 僅近距離；iPad CONDITIONAL） |
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
-| SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（路徑①傾向 GO，n=16／50，2026-09-03） |
+| SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（pmset GO n=16／50；IOKit NO-GO 此機型，已修正預設順序並實機驗證，2026-09-03） |
 | SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | CONDITIONAL GO（2026-09-02；`.hidSystemState`，鎖定時 nil） |
 | SPIKE-003 | 喚醒行為與 system sleep 邊界 | MVP 4 | 3（MVP 3 期間） | PARTIAL（2026-09-02，display sleep 3/3） |
 | SPIKE-005 | Apple Watch 解鎖互動 | MVP 4 | 3 | CONDITIONAL GO（掃描不干擾，n=9，2026-09-03） |

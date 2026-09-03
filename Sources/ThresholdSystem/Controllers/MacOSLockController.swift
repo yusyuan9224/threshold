@@ -14,11 +14,14 @@ public final class MacOSLockController: LockControlling, Sendable {
     private let confirmTimeout: Duration
     private let pollInterval: Duration
 
-    /// Strategy ① (IOKit, unsampled by SPIKE-007) then its `pmset` equivalent (the path SPIKE-007's
-    /// two samples used). Order is a spec choice pending SPIKE-007's full run, not an evidence ranking.
+    /// `pmset displaysleepnow` first, IOKit `IORequestIdle` second — an evidence ranking, not a spec
+    /// choice. A real departure on 2026-09-03 (real Bluetooth, real `MacOSLockController`, this Mac)
+    /// dispatched a lock 3 times and gave up every time: `IORegistryEntrySetCFProperty(IORequestIdle)`
+    /// returned `KERN_SUCCESS` without the display sleeping, so `requestLock()` never reached the
+    /// `pmset` fallback that SPIKE-007 has 16/16 successful samples for. See `LockStrategies.swift`.
     public static let defaultStrategies: [any LockStrategy] = [
-        IODisplayWranglerLockStrategy(),
         PMSetDisplaySleepLockStrategy(),
+        IODisplayWranglerLockStrategy(),
     ]
 
     public init(
