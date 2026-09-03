@@ -299,3 +299,19 @@ MacBook Pro（`Mac17,2`，Apple M5），macOS 26.6.2（build 25G83）。一般�
 射頻恢復後不需要重新配對、不需要使用者操作，也不需要重啟 scanner process：`CoreBluetoothScanner` 自行恢復掃描，同一個 identifier 在 6 s 內重新被匹配。
 
 檔案：`Tools/spikes/out/iphone/bluetooth-off.jsonl`（gitignored；同樣無 profile，故不配 golden）。
+
+| B3 | **iPhone 完整重開機**（關機→開機→密碼解鎖一次→鎖定） | **identifier 不變** | 重開機後 60 s 內 75 筆，RSSI 中位 −49，與重開機前為同一個 identifier |
+
+#### 小結：§B 三項生命週期情境全數 PASS
+
+第四、五批合計驗證了 §B 規格列出的六項情境中的三項：
+
+| 情境 | 結果 |
+|---|---|
+| scanner process restart（第一批，2026-09-02） | identifier 不變 |
+| iPhone 端 Bluetooth off→on（B1） | identifier 不變 |
+| Mac 端 Bluetooth off→on（B2） | identifier 不變 |
+| **iPhone 完整重開機（B3）** | **identifier 不變** |
+| App restart、Mac reboot、OS update、forget／re-pair、24 小時 idle | 仍未測 |
+
+四項獨立情境沒有一項使 iPhone 的 `CBPeripheral.identifier` 改變。這是 iPhone 從 CONDITIONAL GO 走向無條件 SUPPORTED 最後缺的一塊拼圖之一；剩餘缺口是 forget／re-pair 與 Mac 端 reboot。
