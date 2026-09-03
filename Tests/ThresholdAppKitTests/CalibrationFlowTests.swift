@@ -216,7 +216,7 @@ import ThresholdSystem
         #expect(scanner.monitoredDevices == [Fixtures.deviceA])
         container.endCalibration()
         #expect(scanner.monitoredDevices.isEmpty)
-        container.stop()
+        await container.stop()
     }
 
     @Test func scannerFedRunSucceedsAndPersists() async throws {
@@ -227,20 +227,20 @@ import ThresholdSystem
         }
         try container.applyCalibration(record)
         #expect(container.model.calibrationGate.isArmed)
-        container.stop()
+        await container.stop()
     }
 
     @Test func scannerFedOverlapFails() async {
         let (flow, container, _) = await run(centreNear: -60, centreFar: -58)
         #expect(flow.finish(environment: container.calibrationEnvironment) == .failure(.measurement(.overlap)))
         #expect(container.model.calibrationGate.isArmed == false)
-        container.stop()
+        await container.stop()
     }
 
     @Test func scannerFedShortRunFailsAsInsufficientSamples() async {
         let (flow, container, _) = await run(centreNear: -50, centreFar: -80, count: 5)
         #expect(flow.finish(environment: container.calibrationEnvironment)
             == .failure(.measurement(.insufficientSamples(phase: .near))))
-        container.stop()
+        await container.stop()
     }
 }

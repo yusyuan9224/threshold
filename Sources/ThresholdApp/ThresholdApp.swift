@@ -25,10 +25,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
     }
 
-    /// Cancels the long-lived tasks and stops the scanner. Controller work already in flight is
-    /// left alone: a lock that has been issued should finish (architecture.md §5.4).
-    func applicationWillTerminate(_ notification: Notification) {
-        Self.container?.stop()
+    /// Stops the Coordinator, then the scanner, before the process goes away.
+    ///
+    /// `.terminateLater` rather than doing this in `applicationWillTerminate`: the shutdown is
+    /// asynchronous — the Coordinator is an actor — and the order it happens in is required
+    /// (architecture.md §3: `coordinator.stop()` then `scanner.stopScanning()`, so a live actor
+    /// cannot re-arm a scanner that has just been told to stop). Kicking off a detached task
+    /// from a synchronous `applicationWillTerminate` would let the process exit part-way
+    /// through that sequence. This is the one AppKit hook that can hold termination open until
+    /// it has finished.
+    ///
+    /// Controller work already in flight is left alone: a lock that has been issued should
+    /// finish (architecture.md §5.4).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let container = Self.container else { return .terminateNow }
+        Self.container = nil
+        Task {
+            await container.stop()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }
 

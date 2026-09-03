@@ -9,7 +9,7 @@ import ThresholdSystem
 @MainActor
 @Suite struct AppContainerTests {
 
-    @Test func testContainerBuildsAndStartsWithNothingPersisted() {
+    @Test func testContainerBuildsAndStartsWithNothingPersisted() async {
         let scanner = FakeScanner()
         let container = AppContainer.makeForTesting(scanner: scanner)
         container.start()
@@ -21,10 +21,10 @@ import ThresholdSystem
         #expect(container.model.protectionStatus == .notArmed(reason: "set up a trusted device"))
         // An empty device set means "do not scan", so a fresh install raises no permission prompt.
         #expect(scanner.monitoredDevices.isEmpty)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func storedDevicesSettingsAndCalibrationAreLoadedAtStart() {
+    @Test func storedDevicesSettingsAndCalibrationAreLoadedAtStart() async {
         let scanner = FakeScanner()
         var settings = PolicySettings()
         settings.wakeOnReturn = false
@@ -41,11 +41,11 @@ import ThresholdSystem
         #expect(container.model.calibrationGate == .armed(Fixtures.profile))
         #expect(container.needsOnboarding == false)
         #expect(scanner.monitoredDevices == [Fixtures.deviceA])
-        container.stop()
+        await container.stop()
     }
 
     /// A file this build cannot read is reported, never silently replaced with defaults.
-    @Test func storeFailuresBecomeVisibleStartupIssues() {
+    @Test func storeFailuresBecomeVisibleStartupIssues() async {
         let deviceStore = InMemoryDeviceStore()
         deviceStore.failLoad(with: .unsupportedSchemaVersion(file: "devices.json", found: 2, supported: 1))
         let container = AppContainer.makeForTesting(deviceStore: deviceStore)
@@ -54,10 +54,10 @@ import ThresholdSystem
         #expect(container.model.startupIssues.count == 1)
         #expect(container.model.startupIssues[0].contains("devices.json"))
         #expect(container.model.startupIssues[0].contains("Nothing was changed."))
-        container.stop()
+        await container.stop()
     }
 
-    @Test func settingsChangesArePersistedImmediately() throws {
+    @Test func settingsChangesArePersistedImmediately() async throws {
         let store = InMemorySettingsStore()
         let container = AppContainer.makeForTesting(settingsStore: store)
         container.start()
@@ -71,19 +71,19 @@ import ThresholdSystem
         #expect(saved.silenceLock == .never)
         #expect(saved.lockOnDepartureThenSilent == false)
         #expect(store.saveCount == 3)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func settingAValueItAlreadyHasWritesNothing() {
+    @Test func settingAValueItAlreadyHasWritesNothing() async {
         let store = InMemorySettingsStore()
         let container = AppContainer.makeForTesting(settingsStore: store)
         container.start()
         container.setAutoLock(true)
         #expect(store.saveCount == 0)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func registeringADeviceStartsScanningForIt() throws {
+    @Test func registeringADeviceStartsScanningForIt() async throws {
         let scanner = FakeScanner()
         let deviceStore = InMemoryDeviceStore()
         let container = AppContainer.makeForTesting(scanner: scanner, deviceStore: deviceStore)
@@ -94,10 +94,10 @@ import ThresholdSystem
         #expect(container.model.registry.name(for: Fixtures.deviceA) == "Phone")
         #expect(try deviceStore.load() == [DeviceRecord(device: Fixtures.deviceA, name: "Phone")])
         #expect(scanner.monitoredDevices == [Fixtures.deviceA])
-        container.stop()
+        await container.stop()
     }
 
-    @Test func renamingWritesTheNewNameAndIgnoresABlankOne() throws {
+    @Test func renamingWritesTheNewNameAndIgnoresABlankOne() async throws {
         let deviceStore = InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")])
         let container = AppContainer.makeForTesting(deviceStore: deviceStore)
         container.start()
@@ -107,13 +107,13 @@ import ThresholdSystem
 
         try container.renameDevice(Fixtures.deviceA, to: "   ")
         #expect(container.model.registry.name(for: Fixtures.deviceA) == "My phone")
-        container.stop()
+        await container.stop()
     }
 
     /// A profile only means something for the device it was measured from, so removing the
     /// device removes its calibration too — otherwise re-adding an identifier later would
     /// silently arm automation on a stale measurement.
-    @Test func removingADeviceClearsItsCalibration() throws {
+    @Test func removingADeviceClearsItsCalibration() async throws {
         let calibrationStore = InMemoryCalibrationStore(records: [Fixtures.record()])
         let scanner = FakeScanner()
         let container = AppContainer.makeForTesting(
@@ -131,10 +131,10 @@ import ThresholdSystem
         #expect(container.model.calibrationGate == .notArmed(.noProfile))
         #expect(container.needsOnboarding)
         #expect(scanner.monitoredDevices.isEmpty)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func removingOneDeviceLeavesAnotherDevicesCalibrationAlone() throws {
+    @Test func removingOneDeviceLeavesAnotherDevicesCalibrationAlone() async throws {
         let calibrationStore = InMemoryCalibrationStore(records: [
             Fixtures.record(device: Fixtures.deviceA),
             Fixtures.record(device: Fixtures.deviceB),
@@ -152,10 +152,10 @@ import ThresholdSystem
         let remaining = try calibrationStore.load()
         #expect(remaining.map(\.device) == [Fixtures.deviceA])
         #expect(container.model.calibrationGate.isArmed)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func resetCalibrationDisarmsButKeepsTheDevice() throws {
+    @Test func resetCalibrationDisarmsButKeepsTheDevice() async throws {
         let calibrationStore = InMemoryCalibrationStore(records: [Fixtures.record()])
         let container = AppContainer.makeForTesting(
             deviceStore: InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")]),
@@ -168,12 +168,12 @@ import ThresholdSystem
         #expect(try calibrationStore.load().isEmpty)
         #expect(container.model.calibrationGate == .notArmed(.noProfile))
         #expect(container.model.trustedDeviceName == "Phone")
-        container.stop()
+        await container.stop()
     }
 
     /// A failed write must not leave the in-memory gate claiming a calibration that is not on
     /// disk — the next launch would disagree with what the user was just shown.
-    @Test func aFailedCalibrationWriteRollsBackTheInMemoryRecords() {
+    @Test func aFailedCalibrationWriteRollsBackTheInMemoryRecords() async {
         let calibrationStore = InMemoryCalibrationStore()
         calibrationStore.failSave(with: .writeFailed(file: "calibration.json", message: "NSCocoaErrorDomain 513"))
         let container = AppContainer.makeForTesting(
@@ -184,10 +184,10 @@ import ThresholdSystem
 
         #expect(throws: StoreError.self) { try container.applyCalibration(Fixtures.record()) }
         #expect(container.model.calibrationGate == .notArmed(.noProfile))
-        container.stop()
+        await container.stop()
     }
 
-    @Test func applyingACalibrationReplacesThePreviousOneForTheSameDevice() throws {
+    @Test func applyingACalibrationReplacesThePreviousOneForTheSameDevice() async throws {
         let calibrationStore = InMemoryCalibrationStore(records: [Fixtures.record()])
         let container = AppContainer.makeForTesting(
             deviceStore: InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")]),
@@ -202,22 +202,22 @@ import ThresholdSystem
         #expect(stored.count == 1)
         #expect(stored[0].profile == updated)
         #expect(container.model.calibrationGate == .armed(updated))
-        container.stop()
+        await container.stop()
     }
 
     // MARK: - Gate
 
-    @Test func aProfileMeasuredOnAnotherMacDoesNotArm() {
+    @Test func aProfileMeasuredOnAnotherMacDoesNotArm() async {
         let container = AppContainer.makeForTesting(
             deviceStore: InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")]),
             calibrationStore: InMemoryCalibrationStore(records: [Fixtures.record(macIdentity: "another-mac")])
         )
         container.start()
         #expect(container.model.calibrationGate == .notArmed(.macMismatch))
-        container.stop()
+        await container.stop()
     }
 
-    @Test func anOSMajorUpgradeAsksForRevalidation() {
+    @Test func anOSMajorUpgradeAsksForRevalidation() async {
         let container = AppContainer.makeForTesting(
             deviceStore: InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")]),
             calibrationStore: InMemoryCalibrationStore(records: [Fixtures.record(osMajorVersion: 25)]),
@@ -225,12 +225,12 @@ import ThresholdSystem
         )
         container.start()
         #expect(container.model.calibrationGate == .notArmed(.needsRevalidation(osMajorChanged: true)))
-        container.stop()
+        await container.stop()
     }
 
     /// A Mac that will not identify itself disarms rather than defaulting to a value that
     /// would compare equal everywhere.
-    @Test func anUnidentifiableMacDisarms() {
+    @Test func anUnidentifiableMacDisarms() async {
         let container = AppContainer.makeForTesting(
             deviceStore: InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")]),
             calibrationStore: InMemoryCalibrationStore(records: [Fixtures.record()]),
@@ -238,7 +238,7 @@ import ThresholdSystem
         )
         container.start()
         #expect(container.model.calibrationGate == .notArmed(.macMismatch))
-        container.stop()
+        await container.stop()
     }
 
     // MARK: - Sensor channel and login item
@@ -261,10 +261,10 @@ import ThresholdSystem
         let healthy = await waitUntil { container.model.sensorHealth == .healthy }
         #expect(healthy)
         #expect(container.model.protectionStatus == .active)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func loginItemRegistrationIsReflectedInTheModel() throws {
+    @Test func loginItemRegistrationIsReflectedInTheModel() async throws {
         let loginItem = FakeLoginItemController()
         let container = AppContainer.makeForTesting(loginItem: loginItem)
         container.start()
@@ -277,10 +277,10 @@ import ThresholdSystem
         try container.setLoginItemEnabled(false)
         #expect(loginItem.unregisterCount == 1)
         #expect(container.model.loginItemStatus == .known(.notRegistered))
-        container.stop()
+        await container.stop()
     }
 
-    @Test func aFailedLoginItemRegistrationStillRefreshesTheDisplayedStatus() {
+    @Test func aFailedLoginItemRegistrationStillRefreshesTheDisplayedStatus() async {
         let loginItem = FakeLoginItemController()
         loginItem.failNextRegister(with: .registrationFailed("denied"))
         let container = AppContainer.makeForTesting(loginItem: loginItem)
@@ -288,12 +288,12 @@ import ThresholdSystem
 
         #expect(throws: LoginItemError.self) { try container.setLoginItemEnabled(true) }
         #expect(container.model.loginItemStatus == .known(.notRegistered))
-        container.stop()
+        await container.stop()
     }
 
     // MARK: - Onboarding wiring
 
-    @Test func onboardingRegistersThroughTheContainerAndArmsScanning() {
+    @Test func onboardingRegistersThroughTheContainerAndArmsScanning() async {
         let scanner = FakeScanner()
         let container = AppContainer.makeForTesting(scanner: scanner)
         container.start()
@@ -314,7 +314,7 @@ import ThresholdSystem
         flow.finish()
         #expect(container.needsOnboarding == false)
         #expect(container.onboarding == nil)
-        container.stop()
+        await container.stop()
     }
 
     /// HIGH fix: the container's sensor channel must also reach onboarding, so the device
@@ -348,25 +348,25 @@ import ThresholdSystem
         // Recovering from blocked asked for a fresh discovery session.
         let restarted = await waitUntil { scanner.discoverCallCount == 2 }
         #expect(restarted)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func calibrateFromTheMenuNeedsATrustedDevice() {
+    @Test func calibrateFromTheMenuNeedsATrustedDevice() async {
         let container = AppContainer.makeForTesting()
         container.start()
         container.presentCalibrationOnboarding()
         #expect(container.onboarding == nil)
-        container.stop()
+        await container.stop()
     }
 
-    @Test func calibrateFromTheMenuOpensStraightAtTheCalibrationStep() {
+    @Test func calibrateFromTheMenuOpensStraightAtTheCalibrationStep() async {
         let container = AppContainer.makeForTesting(
             deviceStore: InMemoryDeviceStore(records: [DeviceRecord(device: Fixtures.deviceA, name: "Phone")])
         )
         container.start()
         container.presentCalibrationOnboarding()
         #expect(container.onboarding?.step == .calibrate)
-        container.stop()
+        await container.stop()
     }
 
     // MARK: - Diagnostics
@@ -384,6 +384,6 @@ import ThresholdSystem
         // `JSONEncoder` escapes the slash in the format string, so match the parts around it.
         #expect(text.contains("threshold-diagnostics"))
         #expect(text.contains("app started"))
-        container.stop()
+        await container.stop()
     }
 }
