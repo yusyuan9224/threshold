@@ -135,6 +135,7 @@ actor Coordinator {
 - **`.systemDidWake`**：`power = .awake`；`engine.handle(.reset(.systemWake))`；`scanner.resume()`；重評 policy（預期無動作）。
 - **`.screensDidSleep`／`.screensDidWake`**：只更新 `power`，不 reset。
 - **Stream**：scanner／providers 的 stream 長生命週期，不因 sleep／wake 重建；scanner 內部處理重掃並以 sensor 通道回報 `.degraded(.scanInterrupted)` → `.healthy`。stream 意外結束 → 視為 `.unavailable(.scannerFailed)`，`restart()` 最多 3 次（間隔 2 s）。
+  - 實作註記 2026-09-03：`CoreBluetoothScanner.observations` 只在 `deinit` 才 finish 其 continuation，而 Coordinator 對 scanner 是強引用，生命週期與 Coordinator 相同；因此正式環境下這條路徑一旦被觸發，代表 scanner 實例本身已經消失，`restart()` 沒有對象可重啟，三次重試只是把失敗狀態走完，最終停在 `.unavailable(.scannerFailed)` 的一個有界、可觀測的 fail-closed 收斂點，而非真的「重啟並復原」。此設計實際防的是測試用 `BLEScanning` fake 或未來生命週期語意不同的 adapter 提早結束 stream，不是存活中的 `CoreBluetoothScanner` 自行重啟。
 - **停止**：`stop()` 取消 `runTask` 與 `deadlineTask`；執行中的 controller Task 不強制取消（鎖定應完成），其 outcome 在 stop 後回來則忽略。
 - **受信任裝置變更**：`AppContainer` 更新 registry → `scanner.startScanning(for:)` → `.reset(.devicesChanged)` + `.calibrationChanged(gate)`。
 
