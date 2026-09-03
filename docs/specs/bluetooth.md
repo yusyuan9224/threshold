@@ -61,6 +61,7 @@ struct DiscoveredDevice: Sendable, Equatable { let id: DeviceID; let advertisedN
 - 過濾：`didDiscover` 只對 `monitoredDevices` 內的 identifier yield observation；discovery 進行中則另 yield `DiscoveredDevice`。
 - 權限：需 `NSBluetoothAlwaysUsageDescription`；`CBCentralManager` 延後建立（見 architecture §5.4）。
 - `DeviceRegistry`：`DeviceID ↔ 使用者命名`；持久化為 JSON（System 的 `DeviceStore`）。**不**嘗試取得型號名稱。
+- **射頻中斷後的恢復（SPIKE-004 實測，2026-09-03）**：Mac 端 Bluetooth off→on 產生 `poweredOn → poweredOff → poweredOn`，中間**不**出現 `.resetting`。`CoreBluetoothScanner` 在狀態回到 `poweredOn` 後自行恢復掃描，呼叫端**不需**重新呼叫 `startScanning(for:)`；射頻恢復到第一筆 observation 約 6 s。中斷期間的樣本空窗表達為 sensor 軸的 `unavailable.poweredOff`，**不**表達為 device 軸的 silence。監看中的 `CBPeripheral.identifier` 跨中斷不變。
 
 ## 5. Sendable 契約：`CoreBluetoothScanner`（Option A）
 

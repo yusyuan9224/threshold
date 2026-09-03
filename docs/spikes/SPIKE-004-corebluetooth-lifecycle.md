@@ -1,5 +1,5 @@
 # SPIKE-004 CoreBluetooth Lifecycle
-Status: PARTIAL — 2026-09-02　Priority: 1（與 SPIKE-009 同批）
+Status: PARTIAL — 2026-09-03（display sleep 與 BT off→on 已實測 GO；system sleep／App Nap／24 h 未測）　Priority: 1（與 SPIKE-009 同批）
 
 ## Question
 `CBCentralManager` 在 display sleep、system sleep／wake、Bluetooth off／on、App Nap、長時間執行下的狀態序列與掃描行為為何？wake 後是否需重呼叫 `scanForPeripherals`？
@@ -104,3 +104,27 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 目前只能說：在 Mac 保持清醒、單一 process 連續執行 10 分鐘的條件下，`CBCentralManager` 的狀態序列是 `.unknown → .poweredOn` 一次到位，之後 60 個 10 s 取樣點全部維持 `.poweredOn` 且 `isScanning == true`，未出現任何降級狀態。這支持 `bluetooth.md` §3 的狀態映射在正常路徑上可用，但**完全不支持** `pause()`／`resume()` 與 `reset(.systemWake)` 的任何設計選擇。
 
 `system-integration.md` §4 表格與 `bluetooth.md` §4 的 resume 行為維持「預期」，不改為「實測」。
+
+## Evidence 補充：Bluetooth off→on（2026-09-03 21:17 CST，實機）
+
+本 spike 的 Experiment 列了四種情境；2026-09-02 那批涵蓋 display sleep（75 s 與 136 s 掃描持續）與 10 分鐘連續執行。**BT off→on 這一項在此補上**，由操作者在一段 180 s 的 `rssi-record record` 期間手動切換 Mac 控制中心的藍牙開關。
+
+環境：MacBook Pro（`Mac17,2`，M5），macOS 26.6.2（25G83），production `CoreBluetoothScanner`。
+
+| t | `centralManagerDidUpdateState` 映射後的 `SensorHealth` 事件 | 動作 |
+|---|---|---|
+| 0.023 s | `available` | 掃描開始 |
+| 40.448 s | `unavailable.poweredOff` | 使用者關閉 Mac 藍牙 |
+| 76.051 s | `available` | 使用者開啟 Mac 藍牙 |
+
+實測到的行為：
+
+1. **狀態序列可預測**：`poweredOn → poweredOff → poweredOn`，沒有中間的 `.resetting`，也沒有 `.unauthorized` 誤報。
+2. **不需重呼叫 `scanForPeripherals`**：`CoreBluetoothScanner` 在 `poweredOn` 回來後自行恢復掃描，呼叫端沒有做任何事。
+3. **恢復延遲**：射頻恢復到第一筆 observation 約 6 s（t=76.1 s 事件，t≈82 s 的視窗已累積 34 筆新樣本）。
+4. **identifier 不變**：中斷前後為同一個 `CBPeripheral.identifier`，不需重新配對或重新選擇 trusted device。
+5. **空窗被正確歸因**：這 35.6 s 完全反映為 sensor 軸的 `unavailable.poweredOff`，而不是 device 軸的 silence。presence 軸在 `SensorHealth != .healthy` 期間不前進（`ProximityEngine.evaluatePresence`），Policy 因此拒絕行動。
+
+依本文件的 Success criteria，BT off→on 這一項達到 **GO**（行為可預測，且不需要任何額外呼叫即可恢復）。整份 spike 仍為 PARTIAL：system sleep 10 min、App Nap 30 min、連續 24 h 三項未測。
+
+檔案：`Tools/spikes/out/iphone/bluetooth-off.jsonl`（gitignored）。詳見 SPIKE-009「第五批」。

@@ -267,3 +267,35 @@ MacBook Pro（`Mac17,2`，Apple M5），macOS 26.6.2（build 25G83）。一般�
 | **Generic beacon** | UNKNOWN | 未測。 |
 
 檔案：`Tools/spikes/out/{iphone,watch}/{desk-1m,pocket-3m,next-room-8m}.jsonl`（gitignored）。六份皆已通過匿名檢查：內容只有 `device-A` 別名、`rssi`、`t` 與 meta／summary 欄位，無 UUID、MAC、裝置名稱或時鐘時間。**未**納入 `Tests/Fixtures/BLE/`：錄製時尚無 `--profile`（尚未跑過真實 calibration），依 `Tools/rssi-record` 與 `Tests/Fixtures/BLE/README.md` 的契約，沒有 profile 的擷取不得配 golden。要把真實擷取納入 regression set，需先完成一次真實 calibration，再以 `--profile` 重錄。
+
+### 第五批：§B identity 情境（2026-09-03 21:10– CST，操作者在場）
+
+第四批的 identity 資料只涵蓋「跨 22.5 小時的自然使用」。本批第一次**主動製造** §B 所列的生命週期事件，每次事件後以 `rssi-record discover 60` 比對同一個 `CBPeripheral.identifier` 是否再度出現。
+
+| # | 情境 | 結果 | 證據 |
+|---|---|---|---|
+| B1 | **iPhone 端 Bluetooth off→on**（設定 App 內關閉，非控制中心暫時斷線） | **identifier 不變** | 關閉前後為同一個 identifier；重掃 60 s 內 56 筆，RSSI 中位 −42 |
+| B2 | **Mac 端 Bluetooth off→on** | **identifier 不變** | 見下方 `bluetooth-off` capture；射頻恢復後同一個 identifier 立即重新被匹配 |
+
+#### B2 的副產物：真實的 `bluetooth-off` capture
+
+錄製 180 s，操作者在 t≈40 s 關閉 Mac 藍牙、t≈76 s 開回：
+
+```
+{"kind":"sensor","t":23,"status":"available"}
+{"kind":"sensor","t":40448,"status":"unavailable.poweredOff"}
+{"kind":"sensor","t":76051,"status":"available"}
+```
+
+| 指標 | 值 |
+|---|---|
+| 樣本 | 237 |
+| receiving 比例 | 84.2% |
+| 最長 gap | **37.0 s** |
+| RSSI 中位／MAD | −44 ／ 4 |
+
+37.0 s 的空窗與 35.6 s 的射頻中斷區間吻合。**關鍵在於這段空窗沒有被表達成「裝置不見了」**：感測器軸在整段期間持有 `unavailable.poweredOff`，`SensorHealth` 因此不是 `.healthy`，`ProximityEngine.evaluatePresence` 的整個 presence 區塊被跳過，presence 維持最後已知值並由 Policy 拒絕行動（ADR-008）。這是條件 9「感測器故障不得偽裝成使用者離開」第一份**實機**證據，先前只有單元測試。
+
+射頻恢復後不需要重新配對、不需要使用者操作，也不需要重啟 scanner process：`CoreBluetoothScanner` 自行恢復掃描，同一個 identifier 在 6 s 內重新被匹配。
+
+檔案：`Tools/spikes/out/iphone/bluetooth-off.jsonl`（gitignored；同樣無 profile，故不配 golden）。
