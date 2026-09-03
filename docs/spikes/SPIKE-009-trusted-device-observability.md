@@ -1,5 +1,5 @@
 # SPIKE-009 Trusted Device Observability
-Status: PARTIAL — 2026-09-02　Priority: 1（MVP 1A 前的 GO/NO-GO 閘門）　ADR: ADR-009
+Status: PARTIAL — 2026-09-03（Apple Watch／iPad：CONDITIONAL；iPhone：UNKNOWN；beacon：未測）　Priority: 1（MVP 1A 前的 GO/NO-GO 閘門）　ADR: ADR-009
 
 ## Question
 透過 CoreBluetooth 的 supported API（`scanForPeripherals(withServices: nil, allowDuplicates: true)`），iPhone／Apple Watch／generic BLE beacon（AirPods 僅觀察）能否**長時間、穩定**地作為 proximity source，且其 `CBPeripheral.identifier` 是否跨生命週期穩定？
@@ -111,6 +111,41 @@ manufacturer data 前兩位元組為 `4C 00`（Apple）的 identifier：run2 有
 | 11 個有廣播名稱的裝置，兩回合 identifier 相同 | 11/11 |
 
 兩個 process 相隔約 53 s。**這只驗證了 B 節情境中的 scanner restart 一項。**
+
+### 第三批：1 小時 presence suitability + 19 小時 identity（2026-09-03 13:42–14:42 CST，自動化執行）
+
+環境：同一台 Mac，使用者在座（HIDIdleTime < 2 min 起跑），裝置位置**未控制也未記錄**（RSSI 中位數 −56～−58 dBm，與前日桌上量測一致，推定在座位附近）。兩個 process 同時錄製：`Tools/rssi-record record --device ×3 --seconds 3600`（production `CoreBluetoothScanner`）與 `ble-observe 3600`。
+
+**§C Presence suitability（rssi-record，10 s 視窗，361 個）**
+
+| 代號 | 類別 | 樣本 | receiving 比例 | 最長 silent gap | RSSI 中位／MAD | RSSI 127 丟棄 |
+|---|---|---|---|---|---|---|
+| B | Apple Watch（同 Apple ID） | 4 814 | **100%**（361/361） | **6.9 s** | −58 ／ 2 dB | 5 |
+| C | iPad（同 Apple ID） | 3 317 | **100%**（361/361） | **9.9 s** | −56 ／ 0 dB | 3 |
+| A | iPhone（前日 identifier） | 0 | 0% | 3 606 s（整段） | — | — |
+
+B、C 在此放置下達到成功條件的「≥ 95%、最長 gap ≤ 10 s」；C 的 9.9 s 貼近上限。1 m／3 m／8 m 三段距離**未分段量測**。
+
+**§B Identity（ble-observe，360 個視窗，137 個 identifier）**
+
+| 指標 | 值 |
+|---|---|
+| 前日（2026-09-02 14:xx）identifier 於 2026-09-03 13:42 仍相同 | Apple Watch ✔、iPad ✔、另一台 Mac ✔、常駐家用裝置 ✔（≈ 19 h，含 Mac 夜間 display sleep，無 reboot） |
+| 前日 iPhone identifier | **整小時未出現**；亦無任何廣播 iPhone 名稱的新 identifier |
+| identifier 生命期 | ≥ 3 000 s：11；600–3 000 s：67；60–600 s：37；< 60 s：22 |
+
+iPhone 的缺席**無法歸因**：可能不在附近、藍牙關閉、或 identifier 已輪替且不再廣播名稱。本回合對 iPhone 沒有任何證據，前一批的 600 s 觀察仍是唯一資料。
+
+**依本文件成功條件的判定（2026-09-03）**
+
+| 類別 | 判定 | 條件／缺口 |
+|---|---|---|
+| Apple Watch | **CONDITIONAL** | 條件：同 Apple ID、佩戴中、位於座位附近。缺：B 的 reboot／BT off→on／forget-re-pair；C 的 3 m／8 m 分段；A 的整個矩陣 |
+| iPad | **CONDITIONAL** | 同上；gap 9.9 s 貼近上限，3 m 以上需驗證 |
+| iPhone | **UNKNOWN** | 600 s 內連續可觀察（前日）；identifier 跨日穩定性**未證實**；1 h suitability 未取得 |
+| Generic beacon | UNKNOWN | 未測 |
+
+檔案：`Tools/spikes/out/desk-uncontrolled-1h.jsonl`（匿名化 fixture，無 profile，故不配 golden）、`identity-1h.jsonl`（gitignored）。
 
 ### Not yet measured
 

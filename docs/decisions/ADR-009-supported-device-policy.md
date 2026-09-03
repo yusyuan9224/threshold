@@ -39,3 +39,15 @@ SPIKE-009 為 **PARTIAL**，不是 GO、也不是 CONDITIONAL GO。本節摘錄�
 ### 補完矩陣的方式
 
 缺的每一項都需要有人拿著裝置移動，無法自動化。工具與逐項 checklist 在 `Tools/rssi-record/README.md` 的 Field protocol 一節（§A 裝置發現矩陣、§B 身分穩定性、§C presence 適用性），成功條件為 1 m 與 3 m 下 `receivingRatio ≥ 0.95` 且 `longestGapMs ≤ 10000`。`rssi-record` 驅動 production 的 `CoreBluetoothScanner`，其 summary 行不含任何 identifier 或名稱，可直接引用回 SPIKE-009。
+
+## Evidence status 2026-09-03（第三批）
+1 h presence-suitability（`Tools/rssi-record`，production scanner）與 19 h identity 觀察（見 SPIKE-009 第三批）：
+
+| 類別 | 判定 | 使用者文案 |
+|---|---|---|
+| Apple Watch（同 Apple ID） | CONDITIONAL：1 h receiving 100%、最長 gap 6.9 s、identifier 跨 19 h 不變；距離分段與 reboot／BT 切換未測 | 「已在座位附近驗證；離開距離的行為仍在驗證中」 |
+| iPad（同 Apple ID） | CONDITIONAL：1 h receiving 100%、最長 gap 9.9 s、identifier 跨 19 h 不變 | 同上 |
+| iPhone | UNKNOWN：前日 600 s 連續可觀察，但跨日 identifier 未再出現、1 h 資料缺 | 不列入；onboarding 顯示「已觀察到」而非「支援」 |
+| Generic beacon | UNKNOWN | 不列入 |
+
+**Supported-device list（evidence-based，2026-09-03）**：Apple Watch（conditional）、iPad（conditional）。iPhone 暫不列入，直到 SPIKE-009 §B（跨日／reboot）與 §C 對 iPhone 完成。

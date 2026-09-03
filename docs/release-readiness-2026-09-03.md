@@ -33,20 +33,18 @@ Test layers: L1 Domain unit (Signal/Presence/StateMachine/Policy/Calibration inc
 
 Decisions propagated: bluetooth.md §1, system-integration.md §1/§4, ADR-009 (evidence status + wording rule), ADR-011 (amendment), proximity-domain.md §6.2/§7.3.
 
-## 3. Supported-device matrix
+## 3. Supported-device matrix (evidence-based, updated 14:45 CST)
 
-There is **no supported-device list yet** (ADR-009 amendment). Observation records only:
+Third SPIKE-009 batch (1 h `Tools/rssi-record` capture through the production scanner + 1 h `ble-observe` identity capture, devices near the seated user, distance not controlled):
 
-| Class | Observed | Not yet measured |
-|---|---|---|
-| iPhone (same Apple ID) | continuous advertisements, median 8/10 s, RSSI median −46 dBm at desk | pocket / 3 m / next room, locked+idle 5/30/60 min, reboot, BT toggle, other Apple ID |
-| Apple Watch | continuous, median 8/10 s | same |
-| iPad | continuous, median 8/10 s | same |
-| Other Mac | intermittent (18–20 of 60 windows) | — |
-| AirPods | intermittent | connected-to-iPhone / in case |
-| Generic beacon | not tested | all |
+| Class | Verdict (SPIKE-009 criteria) | Evidence | Not yet measured |
+|---|---|---|---|
+| Apple Watch (same Apple ID) | **CONDITIONAL** | 1 h receiving 100% (361/361 windows), longest gap 6.9 s, RSSI median −58 / MAD 2; identifier unchanged across 19 h and scanner restart | 1 m / 3 m / 8 m split, reboot, BT off→on, forget/re-pair, device idle matrix |
+| iPad (same Apple ID) | **CONDITIONAL** | 1 h receiving 100%, longest gap 9.9 s, RSSI median −56; identifier unchanged across 19 h | same; gap is at the 10 s limit |
+| iPhone (same Apple ID) | **UNKNOWN — not listed** | 60/60 windows in the 600 s run on 2026-09-02; the next day its identifier did not reappear in 1 h and no identifier advertised an iPhone name | cross-day identity, 1 h suitability, whole matrix |
+| Generic beacon | UNKNOWN — not listed | — | all |
 
-User-run protocol: `Tools/rssi-record/README.md` (scenario names, `--profile`, privacy rule). Captures without a calibration profile must not receive goldens.
+The supported-device list is therefore: Apple Watch (conditional), iPad (conditional). User-facing copy says "verified near the desk", not "supported". Protocol to close the gaps: `Tools/rssi-record/README.md`.
 
 ## 4. Security / architecture conditions
 
@@ -66,7 +64,7 @@ Raw BLE → effect path: `BLEObservation → ObservationValidator → SignalPipe
 
 ## 6. Remaining external blockers (need the user)
 
-1. SPIKE-009 device matrix and SPIKE-007 repeated samples — require a person carrying the phone / unlocking the Mac; tool and checklist are ready.
+1. SPIKE-009 distance/reboot/BT-toggle scenarios (all classes) and any iPhone evidence at all; SPIKE-007 repeated samples — require a person carrying the device / unlocking the Mac; tool and checklist are ready.
 2. Hands-on GUI walkthrough of `build/Threshold.app` (onboarding → calibration → lock/wake on a real departure).
 3. Signing and notarization — Developer ID certificate, notarytool credentials, team ID (`docs/release.md` §4).
 4. Push to run CI on GitHub (the session has no push permission).

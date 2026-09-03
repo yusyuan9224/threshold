@@ -83,7 +83,7 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 
 | ID | 問題 | 阻擋 | 順序 | Status |
 |---|---|---|---|---|
-| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-02） |
+| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：Watch／iPad CONDITIONAL，iPhone UNKNOWN） |
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
 | SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（2026-09-02） |
@@ -93,23 +93,19 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 | SPIKE-006 | Touch ID 互動 | MVP 4 | 3 | NOT RUN |
 | SPIKE-002 | loginwindow 偵測 | MVP 6 | 4（MVP 5 後） | NOT RUN |
 
-## 裝置觀察紀錄
+## 支援裝置（evidence-based，2026-09-03）
 
-**目前沒有 supported device list。** SPIKE-009 仍為 PARTIAL，沒有任何裝置滿足 SUPPORTED 條件，所以下表寫的是「已觀察到」而非「支援」（ADR-009 `Evidence status 2026-09-02`）。
+依 ADR-009，只有 SPIKE-009 有證據的類別才列入，且以 spike 自己的判定用語標示：
 
-一次 600 s 掃描（`withServices: nil`、`allowDuplicates: true`），單一 Apple Silicon Mac × macOS 26.6.2，不需 companion app、不需事先知道 service UUID、不需連線。裝置類別由廣播名稱推定，未交叉驗證。
+| 類別 | 判定 | 證據 | 尚未量測 |
+|---|---|---|---|
+| Apple Watch（同 Apple ID） | **CONDITIONAL** | 1 h：receiving 100%（361/361 視窗）、最長 gap 6.9 s、RSSI 中位 −58／MAD 2；identifier 跨 19 h 與 scanner 重啟不變 | 1 m／3 m／8 m 分段、reboot、BT off→on、forget／re-pair、裝置 idle 矩陣 |
+| iPad（同 Apple ID） | **CONDITIONAL** | 1 h：receiving 100%、最長 gap 9.9 s、RSSI 中位 −56；identifier 跨 19 h 不變 | 同上；gap 貼近 10 s 上限 |
+| iPhone（同 Apple ID） | **UNKNOWN，不列入** | 前日 600 s 內 60/60 視窗可觀察（RSSI 中位 −46）；隔日 1 h 內前日 identifier 未再出現、亦無 iPhone 名稱的新 identifier | identifier 跨日穩定性、1 h suitability、全部矩陣 |
+| Generic BLE beacon | UNKNOWN，不列入 | — | 全部 |
+| 另一台 Mac／AirPods | 只有觀察，不列入 | 間歇（33%／48% 視窗） | — |
 
-| 裝置 | 有樣本的 10 s 視窗 | RSSI 中位／最低 |
-|---|---|---|
-| iPhone（同 Apple ID） | 60/60（100%） | −46 ／ −65 |
-| Apple Watch（同 Apple ID） | 60/60（100%） | −58 ／ −83 |
-| iPad（同 Apple ID） | 60/60（100%） | −56 ／ −89 |
-| 另一台 Mac（同 Apple ID） | 20/60（33%），含一段 ≥ 120 s 空窗 | −59 ／ −85 |
-| AirPods | 29/60（48%） | −63 ／ −81 |
-
-Identifier 穩定性只驗證了 scanner process restart 一項：兩個相隔約 53 s 的獨立 process，11 個具名裝置的 identifier 全部相同（11/11）。
-
-**尚未量測**：距離／螢幕狀態／鎖定狀態／idle 時間矩陣、Mac 與裝置 reboot、Bluetooth off→on、forget／re-pair、24 小時 idle、1 小時連續觀察與 1 m／3 m／8 m 距離、generic BLE beacon。最長 silent gap 目前只有 < 20 s 的上界，成功條件要求的 ≤ 10 s 尚未驗證。補完方式見 `Tools/rssi-record/README.md` 的 Field protocol。
+條件的含義：CONDITIONAL 表示「同 Apple ID、裝置在座位附近」下達到 SPIKE-009 §C 的門檻（≥ 95%、gap ≤ 10 s），離開距離的行為與 identity 的 reboot／BT 切換情境仍待驗證；onboarding 文案因此寫「已在座位附近驗證」而非「支援」。所有量測皆為單一 Apple Silicon Mac × macOS 26.6.2，`withServices: nil`、`allowDuplicates: true`，不需 companion app、service UUID 或連線。補完方式見 `Tools/rssi-record/README.md` 的 Field protocol。
 
 ## Roadmap
 

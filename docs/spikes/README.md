@@ -4,7 +4,7 @@
 
 | ID | 問題 | 阻擋 | 順序 | Status |
 |---|---|---|---|---|
-| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-02） |
+| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：Watch／iPad CONDITIONAL，iPhone UNKNOWN） |
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
 | SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（2026-09-02） |
