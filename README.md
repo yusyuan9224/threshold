@@ -83,7 +83,7 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 
 | ID | 問題 | 阻擋 | 順序 | Status |
 |---|---|---|---|---|
-| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：Watch／iPad CONDITIONAL，iPhone UNKNOWN） |
+| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：iPhone CONDITIONAL GO；Watch 僅近距離；iPad CONDITIONAL） |
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
 | SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（2026-09-02） |
@@ -95,17 +95,17 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 
 ## 支援裝置（evidence-based，2026-09-03）
 
-依 ADR-009，只有 SPIKE-009 有證據的類別才列入，且以 spike 自己的判定用語標示：
+依 ADR-009，只有 SPIKE-009 有證據的類別才列入，且以 spike 自己的判定用語標示。距離分段（1 m 桌上／3 m 口袋／8 m 隔壁房間、門關上）為 2026-09-03 晚間受控量測，每段 600 s。
 
 | 類別 | 判定 | 證據 | 尚未量測 |
 |---|---|---|---|
-| Apple Watch（同 Apple ID） | **CONDITIONAL** | 1 h：receiving 100%（361/361 視窗）、最長 gap 6.9 s、RSSI 中位 −58／MAD 2；identifier 跨 19 h 與 scanner 重啟不變 | 1 m／3 m／8 m 分段、reboot、BT off→on、forget／re-pair、裝置 idle 矩陣 |
-| iPad（同 Apple ID） | **CONDITIONAL** | 1 h：receiving 100%、最長 gap 9.9 s、RSSI 中位 −56；identifier 跨 19 h 不變 | 同上；gap 貼近 10 s 上限 |
-| iPhone（同 Apple ID） | **UNKNOWN，不列入** | 前日 600 s 內 60/60 視窗可觀察（RSSI 中位 −46）；隔日 1 h 內前日 identifier 未再出現、亦無 iPhone 名稱的新 identifier | identifier 跨日穩定性、1 h suitability、全部矩陣 |
+| iPhone（同 Apple ID） | **CONDITIONAL GO** | 三段 receiving 皆 **100%**；最長 gap 10.2／9.9／9.0 s；RSSI 中位 −50／−60／−68，隨距離單調且四分位區間可分離。**全程鎖定、螢幕熄滅**，隔著關上的門 8 m 仍 100% 可觀測。identifier 跨 ~22.5 h 不變 | `desk-1m` 的 10.2 s 略超過 ≤10 s 門檻；reboot、BT off→on、forget／re-pair；20 分鐘版本的分段 |
+| Apple Watch（同 Apple ID） | **CONDITIONAL（僅近距離）** | 1 m 98.4%／gap 9.9 s、3 m 100%／gap 7.1 s | **8 m 不達標**：83.6%、最長 gap 25.7 s、13 次 >10 s 空窗。RSSI 非單調（1 m 中位 −59、3 m −41），不可用於距離校正 |
+| iPad（同 Apple ID） | **CONDITIONAL** | 1 h 未控距離：receiving 100%、最長 gap 9.9 s；identifier 跨 ~22.5 h 不變 | 距離分段、reboot、BT off→on、forget／re-pair |
 | Generic BLE beacon | UNKNOWN，不列入 | — | 全部 |
 | 另一台 Mac／AirPods | 只有觀察，不列入 | 間歇（33%／48% 視窗） | — |
 
-條件的含義：CONDITIONAL 表示「同 Apple ID、裝置在座位附近」下達到 SPIKE-009 §C 的門檻（≥ 95%、gap ≤ 10 s），離開距離的行為與 identity 的 reboot／BT 切換情境仍待驗證；onboarding 文案因此寫「已在座位附近驗證」而非「支援」。所有量測皆為單一 Apple Silicon Mac × macOS 26.6.2，`withServices: nil`、`allowDuplicates: true`，不需 companion app、service UUID 或連線。補完方式見 `Tools/rssi-record/README.md` 的 Field protocol。
+條件的含義：CONDITIONAL 表示「同 Apple ID、藍牙開啟」下達到 SPIKE-009 §C 的門檻（≥ 95%、gap ≤ 10 s），identity 的 reboot／BT 切換情境仍待驗證。**Apple Watch 的條件更窄**：它是「人在座位附近」的良好證據，但在離開距離會失去觀測，不可作為「已離開」的唯一依據——這正是 ADR-008「證據不足不等於不在場」在裝置選擇上的體現。所有量測皆為單一 Apple Silicon Mac（`Mac17,2`，M5）× macOS 26.6.2，`withServices: nil`、`allowDuplicates: true`，不需 companion app、service UUID 或連線。補完方式見 `Tools/rssi-record/README.md` 的 Field protocol。
 
 ## Roadmap
 

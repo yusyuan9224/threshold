@@ -51,3 +51,23 @@ SPIKE-009 為 **PARTIAL**，不是 GO、也不是 CONDITIONAL GO。本節摘錄�
 | Generic beacon | UNKNOWN | 不列入 |
 
 **Supported-device list（evidence-based，2026-09-03）**：Apple Watch（conditional）、iPad（conditional）。iPhone 暫不列入，直到 SPIKE-009 §B（跨日／reboot）與 §C 對 iPhone 完成。
+
+## Evidence status 2026-09-03 晚間（第四批，取代上表）
+
+受控距離分段（每段 600 s；iPhone 全程鎖定螢幕熄滅、Apple Watch 全程配戴；見 SPIKE-009「第四批」）：
+
+| 類別 | 判定 | 使用者文案 |
+|---|---|---|
+| iPhone（同 Apple ID） | **CONDITIONAL GO**：1 m／3 m／8 m receiving 皆 100%，最長 gap 10.2／9.9／9.0 s，RSSI 中位 −50／−60／−68 單調可分離；identifier 跨 ~22.5 h 不變 | 「已驗證：桌上、口袋、隔壁房間皆可穩定觀察」 |
+| Apple Watch（同 Apple ID） | **CONDITIONAL（僅近距離）**：1 m 98.4%、3 m 100%；**8 m 83.6%、最長 gap 25.7 s，不達標**；RSSI 非單調，不可用於距離校正 | 「已在座位附近驗證；離開距離會失去觀測，不可作為唯一 trusted device」 |
+| iPad（同 Apple ID） | CONDITIONAL：1 h 未控距離 receiving 100%、gap 9.9 s；identifier 跨 ~22.5 h 不變；距離分段未測 | 「已在座位附近驗證；離開距離的行為仍在驗證中」 |
+| Generic beacon | UNKNOWN | 不列入 |
+
+**Supported-device list（evidence-based，2026-09-03 晚間）**：iPhone（conditional go，首選）、Apple Watch（conditional，僅近距離）、iPad（conditional）。
+
+這修正了同日下午的判定方向。當時把 iPhone 記為 UNKNOWN 的唯一理由，是它的 identifier 在一段 1 小時觀察中未出現；比對三份原始擷取後確認**該 identifier 在缺席前後都相同**，缺席原因是裝置不在範圍內，不是 identifier 輪替。
+
+決策影響：
+1. iPhone 進入 supported list，且是唯一在「離開距離」仍可靠的類別 —— 離開判定（`departureThenSilent` 與 measuredFar 兩條路徑）應以 iPhone 為主要證據來源。
+2. Apple Watch 不得作為唯一 trusted device：它在離開距離的失去觀測會被 `SensorHealth` 與 `PresenceEvidence` 正確地表達為「證據不足」（ADR-008），不會誤判為離開，但也因此無法完成離開判定。onboarding 需說明這一點。
+3. calibration 的 near／far baseline 對 iPhone 有意義，對 Apple Watch 不成立（RSSI 非單調）。
