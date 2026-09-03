@@ -156,10 +156,18 @@ public final class AppContainer {
     /// prompt: the scanner defers `CBCentralManager` creation until it is actually asked to
     /// scan or discover (architecture.md §5.4), so a Mac with no trusted device yet shows no
     /// system dialog until the user presses "Start scanning" in onboarding.
+    ///
+    /// - Parameter storageDirectory: where the three JSON stores live. `nil` — the app's own
+    ///   path — resolves `~/Library/Application Support/<bundle id>/` (system-integration.md §3).
+    ///   It is a parameter only so a headless verification tool (`Tools/app-smoke`) can point the
+    ///   *production* graph at a throwaway directory instead of the user's real one. Nothing in
+    ///   the shipping app passes it, and it does not weaken the composition-root rule: this is
+    ///   still the only place a concrete store is constructed.
     public static func live(bundleIdentifier: String? = Bundle.main.bundleIdentifier,
-                            appVersion: String? = nil) throws -> AppContainer {
+                            appVersion: String? = nil,
+                            storageDirectory: URL? = nil) throws -> AppContainer {
         let identifier = bundleIdentifier ?? Self.fallbackBundleIdentifier
-        let directory = try ApplicationSupportDirectory.url(bundleIdentifier: identifier)
+        let directory = try storageDirectory ?? ApplicationSupportDirectory.url(bundleIdentifier: identifier)
         return makeLive(
             deviceStore: JSONFileDeviceStore(directory: directory),
             calibrationStore: JSONFileCalibrationStore(directory: directory),
@@ -176,9 +184,12 @@ public final class AppContainer {
     /// on its first screen that nothing will be remembered. Failing loudly and visibly beats
     /// both crashing and quietly writing somewhere else.
     public static func bootstrap(bundleIdentifier: String? = Bundle.main.bundleIdentifier,
-                                 appVersion: String? = nil) -> AppContainer {
+                                 appVersion: String? = nil,
+                                 storageDirectory: URL? = nil) -> AppContainer {
         do {
-            return try live(bundleIdentifier: bundleIdentifier, appVersion: appVersion)
+            return try live(bundleIdentifier: bundleIdentifier,
+                            appVersion: appVersion,
+                            storageDirectory: storageDirectory)
         } catch {
             let container = makeLive(
                 deviceStore: InMemoryDeviceStore(),

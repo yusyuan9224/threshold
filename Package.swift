@@ -26,11 +26,21 @@ let package = Package(
         // package by path and drive the *production* adapters rather than a parallel
         // copy of them (Tools/rssi-record uses ThresholdBluetooth.CoreBluetoothScanner,
         // so its field evidence comes through the code the app ships).
-        // Only the two targets a tool legitimately needs are exported; Runtime and
-        // System stay internal so nothing outside the package can bypass the
-        // composition root.
+        //
+        // Every layer below the executable is exported, because Tools/app-smoke boots the
+        // real `AppContainer` headlessly and has to name the types that graph is made of:
+        // AppKit for the container and its observable state, Runtime for the Coordinator,
+        // System for the provider protocols it reads, Diagnostics for the recorder snapshot.
+        // Exporting them does not open a second way to build the app. `AppContainer` remains
+        // the only adapter factory — a tool reaches the production graph through
+        // `AppContainer.live`/`bootstrap` and nowhere else — and the boundary rules in
+        // scripts/check-boundaries.sh are unchanged by this.
         .library(name: "ThresholdDomain", targets: ["ThresholdDomain"]),
         .library(name: "ThresholdBluetooth", targets: ["ThresholdBluetooth"]),
+        .library(name: "ThresholdSystem", targets: ["ThresholdSystem"]),
+        .library(name: "ThresholdDiagnostics", targets: ["ThresholdDiagnostics"]),
+        .library(name: "ThresholdRuntime", targets: ["ThresholdRuntime"]),
+        .library(name: "ThresholdAppKit", targets: ["ThresholdAppKit"]),
     ],
     targets: [
         .target(name: "ThresholdDomain"),
