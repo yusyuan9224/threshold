@@ -14,7 +14,7 @@ Lead-agent report at main `ed562ff`. Every claim below is reproducible from the 
 | `swift build --package-path Tools/app-smoke && <bin>/app-smoke 15` (real adapters, headless) | Coordinator started with empty registry; onboarding discovery idle→scanning→found in 560 ms; 4 Coordinator events recorded, 0 dropped; nothing written to the user's Application Support; exit 0 |
 | `git status` | clean; single worktree on main |
 
-Toolchain: macOS 26.6.2, Xcode 26.6, Swift 6.3.3; Package tools-version 6.0, deployment target macOS 14.0, no external dependencies. CI (`.github/workflows/ci.yml`, macos-15): every step it defines (shell-script lint, boundaries, build, test, app bundle, Tools builds) was executed locally with exit 0. The repository has **no git remote** as of this report; pushing one so the workflow runs on GitHub is in progress (§7).
+Toolchain: macOS 26.6.2, Xcode 26.6, Swift 6.3.3; Package tools-version 6.0, deployment target macOS 14.0, no external dependencies. CI (`.github/workflows/ci.yml`, macos-15) now has a hosted green run: `https://github.com/yusyuan9224/threshold/actions/runs/33767953432` — every step (shell-script lint, architecture boundaries, build, test, app bundle, Tools build) passed in 1m14s. `origin` was added (`https://github.com/yusyuan9224/threshold.git`) and `main` pushed with the user's explicit confirmation.
 
 Test layers: L1 Domain unit (Signal/Presence/StateMachine/Policy/Calibration incl. property tests T-15 100k steps), L2 fixture replay (11 synthetic recordings with goldens), L3 Coordinator integration (T-03/07/08/09/12/18 + lifecycle/restart/stop), ThresholdAppKit end-to-end (FakeScanner → exactly one lock → ledger confirmed), L4 System adapter mapping/fail-closed tests, Bluetooth T-18/T-19 concurrency, Diagnostics privacy/fail-closed export.
 
@@ -79,9 +79,10 @@ Raw BLE → effect path unchanged by tonight's fixes: `BLEObservation → Observ
 ## 7. Remaining external blockers (need the user)
 
 1. Signing and notarization — Developer ID certificate, notarytool credentials, team ID. Everything that can be prepared without them is done: `scripts/sign-and-notarize.sh` (hardened runtime, notarize, staple, spctl; exits 2 without credentials) and `scripts/make-dmg.sh` (refuses unstapled bundles), both syntax-checked in CI (`docs/release.md` §4).
-2. Push to a git remote so the CI workflow runs on GitHub — repo creation and the push itself are in progress as of this report; not yet confirmed green.
-3. Product name trademark search before the first public release (README).
-4. Apple Watch / iPad reboot and forget-re-pair identity scenarios; iPad and beacon distance matrices; SPIKE-007 samples for lock paths ③④; 20-minute-per-segment version of the SPIKE-009 distance run — all optional hardening beyond what already gates the supported-device list.
+2. Product name trademark search before the first public release (README).
+3. Apple Watch / iPad reboot and forget-re-pair identity scenarios; iPad and beacon distance matrices; SPIKE-007 samples for lock paths ③④; 20-minute-per-segment version of the SPIKE-009 distance run — all optional hardening beyond what already gates the supported-device list.
+
+CI is no longer a blocker: `origin` is set and `main` has a hosted green run (§1).
 
 ## 8. Defects
 
