@@ -1,30 +1,30 @@
 /// What the app is allowed to claim about which devices work.
 ///
 /// ADR-009 is a one-line rule — *a device is supported only if its presence can be observed
-/// reliably through supported APIs* — and SPIKE-009 is currently **PARTIAL**. Its evidence
-/// section is unambiguous about what was and was not measured: one ten-minute scan on one
-/// Apple Silicon Mac running macOS 26, in which an iPhone, an Apple Watch and an iPad on the
-/// same Apple ID were reported in every ten-second window, and one identifier-stability check
-/// across two scanner processes 53 seconds apart. Reboots, Bluetooth off/on, 24-hour idle,
-/// the distance matrix and the ≤ 10 s silent-gap criterion were **not** measured. No device
-/// has met the SUPPORTED bar.
+/// reliably through supported APIs* — and the copy below is tied to SPIKE-009's own verdicts
+/// (docs/spikes/SPIKE-009, third batch 2026-09-03). Apple Watch and iPad reached the spike's
+/// one-hour presence bar near the desk (receiving 100%, longest silent gap 6.9 s / 9.9 s) and
+/// kept the same identifier for 19 hours, so they are listed as **conditional**: verified near
+/// the desk, with the distance, reboot and Bluetooth-toggle scenarios still open. The iPhone
+/// was reported in every window of a ten-minute run but did not reappear the next day, so it
+/// is **unknown** and is not listed. Nothing has met the unconditional SUPPORTED bar.
 ///
-/// So the onboarding copy says "observed", never "supported", and names the size of the
-/// evidence. Marketing language that outruns the spike is the specific failure ADR-009 was
-/// written to prevent, and onboarding is where a user decides how much to trust this app.
+/// Onboarding is where a user decides how much to trust this app, so the copy names the size
+/// of the evidence instead of rounding it up. Marketing language that outruns the spike is the
+/// specific failure ADR-009 was written to prevent.
 public enum SupportedDevices {
 
     /// The honest note shown on the device-picker step.
     public static let observationNote = """
-        Threshold has only been observed with an iPhone, Apple Watch and iPad signed in to the \
-        same Apple ID, across a single ten-minute run on one Mac. That is early evidence, not a \
-        supported-device list: reboots, Bluetooth being turned off and on, and longer time \
-        spans have not been tested yet. Another Mac and AirPods were much less visible in the \
-        same run.
+        Verified near the desk so far: an Apple Watch and an iPad signed in to this Mac's Apple ID \
+        (one hour each, heard in every ten-second window, same identifier the next day). Walking \
+        away, restarting devices and toggling Bluetooth have not been tested yet. An iPhone was \
+        heard continuously in one ten-minute run but could not be found again the next day, so it \
+        is not on the list. Another Mac and AirPods were only intermittently visible.
         """
 
     /// One line for the picker's empty state and the settings sheet.
-    public static let shortNote = "Observed so far with iPhone, Apple Watch and iPad. Not yet a supported-device list."
+    public static let shortNote = "Verified near the desk with Apple Watch and iPad (conditional). iPhone: not yet verified."
 
     /// Why the list is full of devices the user does not recognise.
     public static let noiseNote = """
