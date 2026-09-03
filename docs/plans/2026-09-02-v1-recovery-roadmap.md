@@ -1,6 +1,6 @@
 # v1.0 Recovery Roadmap (2026-09-02)
 
-Status: Active. Written by the lead agent after the recovery audit; updated as milestones close.
+Status: Closed 2026-09-03 — all tasks merged; see docs/release-readiness-2026-09-03.md. Written by the lead agent after the recovery audit; updated as milestones close.
 Goal: the 18 v1.0 conditions recorded in the session `/goal`.
 
 ## Recovered state (audit)
