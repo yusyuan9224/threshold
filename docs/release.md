@@ -47,7 +47,7 @@ swift build --package-path Tools/rssi-record
 |---|---|---|
 | `scripts/check-boundaries.sh` | ADR-001／003／004 與 architecture.md §2 的六類邊界（Domain 不 import、無 private framework、無憑證處理／keystroke 合成、未文件化訊號只在 System、Domain 不讀時鐘、fixtures 匿名） | `boundaries OK` |
 | `swift build` | 全 target 編譯與連結 | `Build complete!` |
-| `swift test` | 全部測試 | `456 tests in 71 suites passed` |
+| `swift test` | 全部測試 | `577 tests in 85 suites passed`（2026-09-03） |
 | `scripts/make-app-bundle.sh release` | 組出 `build/Threshold.app`，並以 `plutil -lint` 驗證 Info.plist | `bundled: …/build/Threshold.app (version 0.0.0, release)` |
 | `swift build --package-path Tools/rssi-record` | MVP 1B field recorder 仍能對 production scanner 建置 | `Build complete!` |
 

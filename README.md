@@ -40,9 +40,9 @@ Mac 進入完全睡眠後，使用者第一次按鍵／觸碰觸控板喚醒它�
 ## 隱私（ADR-007）
 
 - 預設**本機處理、無雲端、無帳號、無 telemetry**。MVP 不依賴任何雲端服務。
-- 診斷紀錄禁止寫入密碼、任何憑證、完整 identifier／MAC（以穩定短雜湊代替）。
+- 診斷紀錄禁止寫入密碼、任何憑證、完整 identifier／MAC（以 process 內穩定別名 `device-N` 代替，別名表不匯出）。
 - 匯出檔去識別化，並在寫出前跑一次匿名性檢查。
-- 測試 fixtures 同規則：`scripts/check-boundaries.sh` 會擋下含 UUID、MAC、廣播名稱或 wall-clock 時間的 fixture。
+- 測試 fixtures 同規則：`scripts/check-boundaries.sh` 會擋下含 UUID 或 MAC 的 fixture；廣播名稱與 wall-clock 由 `rssi-record` 在寫檔時就不產生。
 
 ## 建置、測試、打包
 

@@ -65,6 +65,11 @@ Sources/ThresholdDomain/
 
 Domain／Bluetooth／System 內部**不得** new 彼此的 concrete 實作。測試用 `TestContainer` 全部換 Fake。
 
+實作註記（2026-09-03）：
+- `ObservationTee`（ThresholdAppKit）是 `scanner.observations` 的唯一 consumer，把同一條 lossy stream 轉發給 Coordinator 與「每次校正開啟一次」的 calibration tap；AsyncStream 是 single-consumer，沒有 tee 時校正與 Coordinator 會各拿到一半的廣播。`sensorStates`／`discover()` 原樣透傳。
+- 校正期間 `AppContainer` 以 `.settingsChanged` 把 `autoLock`／`wakeOnReturn` 暫時關閉；結束時先送 `.devicesChanged`（engine reset）再送 `.settingsChanged`（恢復），避免以校正 far 段殘留的 away 狀態鎖定剛坐回來的使用者。輸入走單一 FIFO stream，順序可保證。
+- Coordinator 在 registry 為空時也啟動（它是 `sensorStates` 的唯一 consumer，onboarding 需要它區分「還沒廣播」與「藍牙關閉」）；空集合不會建立 `CBCentralManager`，不觸發權限對話。
+
 不使用 DI framework：五到十個物件的手動組裝不需要框架。
 
 ## 4. Concurrency Model
