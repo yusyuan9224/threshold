@@ -7,7 +7,16 @@ import PackageDescription
 //   ThresholdSystem        → Domain
 //   ThresholdDiagnostics   → (leaf; consumed only by Runtime/App)
 //   ThresholdRuntime       → Domain, Bluetooth, System, Diagnostics   (Coordinator, wiring)
-//   ThresholdApp (exec)    → Runtime (+ SwiftUI)
+//   ThresholdAppKit        → Domain, Bluetooth, System, Diagnostics, Runtime
+//   ThresholdApp (exec)    → AppKit (+ SwiftUI views and the @main entry point only)
+//
+// `ThresholdAppKit` is not a new layer: it is the App layer of architecture.md §2.2,
+// split out because SwiftPM cannot attach a test target to an executable target.
+// Everything in the App layer with behaviour worth asserting — the `AppContainer`
+// composition root, the observable UI state, the onboarding and calibration state
+// machines — lives in the library, and `ThresholdApp` keeps only what a test could not
+// run headlessly anyway. The composition-root rule is unchanged: `AppContainer` is
+// still the one place a concrete adapter is constructed.
 let package = Package(
     name: "Threshold",
     platforms: [.macOS(.v14)],
@@ -30,7 +39,10 @@ let package = Package(
         .target(name: "ThresholdDiagnostics"),
         .target(name: "ThresholdRuntime",
                 dependencies: ["ThresholdDomain", "ThresholdBluetooth", "ThresholdSystem", "ThresholdDiagnostics"]),
-        .executableTarget(name: "ThresholdApp", dependencies: ["ThresholdRuntime"]),
+        .target(name: "ThresholdAppKit",
+                dependencies: ["ThresholdDomain", "ThresholdBluetooth", "ThresholdSystem",
+                               "ThresholdDiagnostics", "ThresholdRuntime"]),
+        .executableTarget(name: "ThresholdApp", dependencies: ["ThresholdAppKit"]),
 
         .testTarget(name: "ThresholdDomainTests", dependencies: ["ThresholdDomain"],
                     resources: [.copy("../Fixtures/BLE")]),
@@ -38,6 +50,7 @@ let package = Package(
         .testTarget(name: "ThresholdSystemTests", dependencies: ["ThresholdSystem"]),
         .testTarget(name: "ThresholdDiagnosticsTests", dependencies: ["ThresholdDiagnostics"]),
         .testTarget(name: "ThresholdRuntimeTests", dependencies: ["ThresholdRuntime"]),
+        .testTarget(name: "ThresholdAppKitTests", dependencies: ["ThresholdAppKit"]),
     ],
     swiftLanguageModes: [.v6]
 )
