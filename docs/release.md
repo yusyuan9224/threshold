@@ -57,6 +57,8 @@ CI 跑的是同一組（`.github/workflows/ci.yml`），差別只有 bundle 用 
 
 ## 4. EXTERNAL BLOCKER：簽章與 notarization
 
+**可執行的流程已備妥（2026-09-03）**：`scripts/sign-and-notarize.sh [bundle]` 讀取 `THRESHOLD_SIGN_IDENTITY` 與 `THRESHOLD_NOTARY_PROFILE`（notarytool keychain profile），缺任一項即印出缺少的憑證並以 exit 2 結束、不做任何簽章；憑證齊備時依序 `codesign --options runtime --timestamp` → `codesign --verify --deep --strict` → `ditto` 壓縮 → `notarytool submit --wait` → `stapler staple/validate` → `spctl --assess`。`scripts/make-dmg.sh` 只接受已 staple 的 bundle。兩支 script 在本機以 `bash -n` 與「無憑證路徑」驗證過；CI 對所有 `scripts/*.sh` 做語法檢查。
+
 **狀態：阻擋中。** 本 repo 沒有、也不應有任何簽章憑證。以下步驟在憑證備妥前無法執行，也未曾被執行過，因此本節**沒有任何實測數據**。
 
 ### 4.1 需要的憑證與帳號
