@@ -1,5 +1,5 @@
 # SPIKE-007 Lock Method
-Status: PARTIAL — 2026-09-02　Priority: 2（MVP 3 前）
+Status: PARTIAL（路徑①傾向 GO，n=16／50）— 2026-09-03　Priority: 2（MVP 3 前）
 
 ## Question
 四條鎖定路徑各自的可靠度、延遲、權限需求與副作用：① displaySleep（IOKit `IORequestIdle`）+「睡眠後立即要求密碼」；② ⌃⌘Q via `CGEvent`（需 Accessibility）；③ `shortcuts run "Lock Screen"`（未文件化）；④ 啟動 `ScreenSaverEngine`。
@@ -64,3 +64,25 @@ Apple Silicon（arm64）Mac，macOS 26.6.2（build 25G83；由事後 `sw_vers` �
 尚無 GO/NO-GO。成功條件要求「至少一條無權限路徑在『要求密碼＝立即』下 **100% 鎖定**（50 次）且延遲 ≤ 2 s」，目前只有 2 次成功樣本（+76 ms、+41 ms）。
 
 這 1 次樣本顯示：在「要求密碼＝立即」下，顯示器睡眠**確實**在 156 ms 內帶出 `com.apple.screenIsLocked`，且不需要任何權限。這是路徑 ① 值得優先投資的初步理由，但不足以定下 `MacOSLockController` 的策略順序與退回邏輯。下一步應先補齊路徑 ① 的 50 次重複與「要求密碼」的三種設定，再測 ③④。
+
+### 第三批：路徑①的 14 個新樣本（2026-09-03 21:33–21:39 CST）
+
+在 SPIKE-005／SPIKE-006 的解鎖測試中，每次解鎖後的重新鎖定都是路徑①（`pmset displaysleepnow`）的一次獨立樣本。全部 14 次，「要求密碼」仍為立即。
+
+| 指標 | 值 |
+|---|---|
+| 樣本數（本批） | 14 |
+| 成功 | 14／14 |
+| 失敗 | 0 |
+| `displaySleep→locked` 延遲範圍 | 62–337 ms |
+| `displaySleep→locked` 中位數 | 85 ms |
+
+累計（2026-09-02 兩筆 + 本批 14 筆）：**n = 16，16／16 成功，延遲 41–337 ms**，全部遠低於成功條件的 2 s。仍以 `pmset displaysleepnow` 代替規格中的 IOKit `IORequestIdle`，兩者等價性未驗證。
+
+### Not yet measured（更新）
+- 樣本數：16／50（路徑①），仍需 34 次才達規格全量，但目前 0 失敗、延遲穩定在 41–337 ms 這個窄區間，已足以支持「至少一條無權限路徑可靠」這個初步結論
+- 路徑②③④、「要求密碼」5 秒／關閉、外接螢幕、媒體播放、macOS 14／15、Intel — 仍未測
+
+### Preliminary reading（更新）
+
+16 個樣本、0 失敗、延遲全部 < 350 ms，遠低於成功條件的 2 s 上限。樣本數雖未達規格的 50 次，但延遲分佈很窄（41–337 ms，中位數附近集中），沒有出現任何離群或失敗案例，**路徑①已有足夠證據支持 GO 的初步判斷**，正式定案仍建議補到規格要求的樣本數，並涵蓋「要求密碼」的另外兩種設定。

@@ -29,7 +29,7 @@ App **不持有登入密碼、不模擬輸入密碼、不執行 authentication**
 | **Wake on Return** | 使用者回來時呼叫 `IOPMAssertionDeclareUserActivity` 點亮顯示器，交還登入畫面 | **只在 Mac 醒著、顯示器睡眠或已鎖定時有效。不宣稱能把 Mac 從 system sleep 喚醒** —— 第三方 App 沒有 supported 機制做到（`docs/specs/system-integration.md` §4）。SPIKE-003 實測 display sleep + locked 下 3/3 於 ≤ 150 ms 點亮、免權限、鎖定不變；點亮後無輸入約 33 s 會再度熄滅 |
 | **Diagnostics** | 環形緩衝記錄 transition／decision／rationale，UI 可回答「為什麼剛才鎖了？」，匯出為去識別化 JSON | 匯出前過濾敏感樣式，未通過就不寫檔（fail-closed） |
 
-Mac 進入完全睡眠後，使用者第一次按鍵／觸碰觸控板喚醒它，之後 Touch ID／Apple Watch 照常接手。
+Mac 進入完全睡眠後，使用者第一次按鍵／觸碰觸控板喚醒它，之後 Touch ID／Apple Watch 照常接手（SPIKE-006：內建 Touch ID 一碰即解鎖，5/5，延遲 370–624 ms；SPIKE-005：Apple Watch 9/9，含本 App 掃描同時進行的 2 次，掃描未觀察到干擾）。
 
 ## 三條原則（見 docs/decisions）
 
@@ -86,11 +86,11 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 | SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：iPhone CONDITIONAL GO；Watch 僅近距離；iPad CONDITIONAL） |
 | SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
 | SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
-| SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（2026-09-02） |
+| SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（路徑①傾向 GO，n=16／50，2026-09-03） |
 | SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | CONDITIONAL GO（2026-09-02；`.hidSystemState`，鎖定時 nil） |
 | SPIKE-003 | 喚醒行為與 system sleep 邊界 | MVP 4 | 3（MVP 3 期間） | PARTIAL（2026-09-02，display sleep 3/3） |
-| SPIKE-005 | Apple Watch 解鎖互動 | MVP 4 | 3 | NOT RUN |
-| SPIKE-006 | Touch ID 互動 | MVP 4 | 3 | NOT RUN |
+| SPIKE-005 | Apple Watch 解鎖互動 | MVP 4 | 3 | CONDITIONAL GO（掃描不干擾，n=9，2026-09-03） |
+| SPIKE-006 | Touch ID 互動 | MVP 4 | 3 | GO（內建鍵盤，n=5，2026-09-03） |
 | SPIKE-002 | loginwindow 偵測 | MVP 6 | 4（MVP 5 後） | NOT RUN |
 
 ## 支援裝置（evidence-based，2026-09-03）
