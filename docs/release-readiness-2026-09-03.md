@@ -12,9 +12,10 @@ Lead-agent report at main `f7b1b05`. Every claim below is reproducible from the 
 | `scripts/make-app-bundle.sh release` | `build/Threshold.app (version 0.0.0, release)`, Info.plist lint OK |
 | `swift build --package-path Tools/rssi-record` | `Build complete!` |
 | `build/Threshold.app/Contents/MacOS/ThresholdApp` (8 s smoke) | process alive, no output, no files written |
+| `swift build --package-path Tools/app-smoke && <bin>/app-smoke 15` (real adapters, headless, 15:25 CST) | Coordinator started with empty registry (no CBCentralManager until discovery); onboarding discovery idle→scanning→found in 560 ms, 22 identifiers / 8 named in 15 s; sensor initializing→healthy; providers: screen unlocked, session active, power awake, input idle 69.8 s; 4 Coordinator events recorded, 0 dropped; nothing written to the user's Application Support; exit 0 |
 | `git status` | clean; single worktree on main |
 
-Toolchain: macOS 26.6.2, Xcode 26.6, Swift 6.3.3; Package tools-version 6.0, deployment target macOS 14.0, no external dependencies. CI (`.github/workflows/ci.yml`, macos-15) runs the same steps; it has **not** been executed remotely in this session (nothing was pushed).
+Toolchain: macOS 26.6.2, Xcode 26.6, Swift 6.3.3; Package tools-version 6.0, deployment target macOS 14.0, no external dependencies. CI (`.github/workflows/ci.yml`, macos-15): every step it defines (boundaries, build, test, app bundle, Tools builds) was executed locally with exit 0. The repository has **no git remote** (`git remote` is empty), so no hosted CI run exists; creating a remote and pushing is a user action.
 
 Test layers: L1 Domain unit (Signal/Presence/StateMachine/Policy/Calibration incl. property tests T-15 100k steps), L2 fixture replay (11 synthetic recordings with goldens), L3 Coordinator integration (T-03/07/08/09/12/18 + lifecycle/restart/stop), ThresholdAppKit end-to-end (FakeScanner → exactly one lock → ledger confirmed), L4 System adapter mapping/fail-closed tests, Bluetooth T-18/T-19 concurrency, Diagnostics privacy/fail-closed export.
 
@@ -58,16 +59,16 @@ Raw BLE → effect path: `BLEObservation → ObservationValidator → SignalPipe
 - Lock strategy ① (IOKit `IORequestIdle`) has no direct spike sample; its `pmset` equivalent has n=2. Both are confirmed against `ScreenStateProviding`; unconfirmed locks retry ≤3× every 5 s then give up (surfaced in the menu).
 - Scanner stream failure is a bounded fail-closed shutdown (`.unavailable(.scannerFailed)`), not recovery.
 - Silence-based lock depends on SPIKE-008 conditions; screen saver / fast user switching / synthetic-event cases untested.
-- GUI (MenuBarExtra, onboarding, calibration, settings windows) verified by unit tests and an 8 s launch smoke only; no human has clicked through it.
+- GUI (MenuBarExtra, onboarding, calibration, settings windows): logic verified by 94 ThresholdAppKit tests, an 8 s bundle launch, and a 15 s headless run of the real composition root with production adapters (`Tools/app-smoke`); the visual layer itself has not been clicked through by a person.
 - `SMAppService` login-item behaviour needs a signed, installed bundle to verify.
 - Bundle identifier defaults to `dev.threshold.app`; set `THRESHOLD_BUNDLE_ID` before distribution.
 
 ## 6. Remaining external blockers (need the user)
 
 1. SPIKE-009 distance/reboot/BT-toggle scenarios (all classes) and any iPhone evidence at all; SPIKE-007 repeated samples — require a person carrying the device / unlocking the Mac; tool and checklist are ready.
-2. Hands-on GUI walkthrough of `build/Threshold.app` (onboarding → calibration → lock/wake on a real departure).
+2. Hands-on GUI walkthrough of `build/Threshold.app` (onboarding → calibration → lock/wake on a real departure). Headless equivalents are automated (`Tools/app-smoke`); only the visual layer and a real departure remain.
 3. Signing and notarization — Developer ID certificate, notarytool credentials, team ID (`docs/release.md` §4).
-4. Push to run CI on GitHub (the session has no push permission).
+4. Create a git remote and push so the CI workflow runs on GitHub (the repo currently has no remote; the session has no push permission).
 5. Product name trademark search before the first public release (README).
 
 ## 7. Defects
