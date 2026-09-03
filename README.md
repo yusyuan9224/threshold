@@ -1,142 +1,159 @@
 # Threshold
 
+English ｜ **[繁體中文](README.zh-TW.md)**
+
 > A security-first macOS proximity application that automatically protects the Mac when the user leaves and prepares it for secure native authentication when the user returns.
 
-工作代號 **Threshold**（正式命名前需做商標檢索）。
+**v1.0.0-beta.1** — working title **Threshold** (a trademark search is still pending before an official name). This is the first public release, and it is a **beta**: the primary path (an iPhone as the trusted device, Auto Lock, Wake on Return, native Touch ID / Apple Watch unlock) has real-device evidence, but the full SPIKE-009 device matrix, code signing / notarization, and a formal trademark check are still open — see [`docs/release-readiness-2026-09-03.md`](docs/release-readiness-2026-09-03.md) for the exact state this tag ships in. The project roadmap is maintainer-directed; ideas and pull requests are welcome, best started as an issue for anything non-trivial.
 
-## 現況（2026-09-02）
+## About
 
-Domain／Bluetooth／System／Diagnostics／Runtime／App 六層皆已實作，`swift test` 全綠，App 可組成 `Threshold.app` 執行。**尚未達到 v1.0**：兩項阻擋皆在 repo 之外。
+Threshold locks your Mac automatically when you walk away with your iPhone, and hands the screen straight back to Touch ID or Apple Watch when you return — no companion app, no account, no cloud.
 
-| 項目 | 狀態 |
+Most Bluetooth-proximity lock tools on macOS reach for whatever gets the job done fastest: private frameworks, an active Bluetooth *connection* to your phone (which readable as "this app is talking to my phone" and drains its battery), or synthesizing keystrokes to type your password for you. Threshold takes the slower, narrower path instead:
+
+- **Observation only.** It reads your trusted device's Bluetooth advertisements — the same signal your AirPods use to show a battery level — and never connects to it. Your phone's Bluetooth radio never even sees this Mac.
+- **No password handling, anywhere.** Threshold cannot type your login password and never stores it. When you return, it wakes the display and hands the actual authentication back to macOS: Touch ID, your Apple Watch, or your password, typed by you.
+- **Fail closed, not fail open.** If the Bluetooth sensor's health is unknown, or the evidence for "you left" is too thin, Threshold does nothing — it never guesses. Missing evidence is never treated as evidence of absence (that's ADR-008, one of the project's three governing principles below).
+- **No cloud, no account, no telemetry.** Everything runs on your Mac. There is nothing to sign up for and nothing being sent anywhere.
+- **Public APIs only, everywhere it can be observed.** Every undocumented macOS signal Threshold reads is isolated to one module (`ThresholdSystem`) and backed by its own real-device measurement — see the spike table below. Nothing else in the codebase touches an undocumented signal, a private framework, or an Accessibility permission.
+
+If that sounds like it should be simple, it mostly is — the complexity in this repository is almost entirely in *proving* each of those claims with real hardware rather than just asserting them. That evidence trail (the `docs/spikes/` directory, the diagnostics export, the readiness report) is deliberately kept alongside the code, not thrown away once a feature "works."
+
+## Status (2026-09-03)
+
+All six layers (Domain, Bluetooth, System, Diagnostics, Runtime, App) are implemented, `swift test` is fully green, and the app assembles into a runnable `Threshold.app`. A complete departure → lock → return → wake cycle has been verified end to end on real hardware. **Unconditional v1.0 is not yet reached**: signing credentials and part of the device matrix remain outside this repository.
+
+| Item | Status |
 |---|---|
-| 實作 | 完成（Domain、Bluetooth、System、Diagnostics、Runtime、AppKit／App） |
-| 自動化驗證 | `check-boundaries.sh` + `swift build` + `swift test` + bundle，CI 每個 PR 跑同一組 |
-| 實機驗證 | **未完成** —— SPIKE-009 的距離／鎖定／reboot 矩陣需要有人拿著裝置移動，見下方 spike 表 |
-| 簽章與 notarization | **EXTERNAL BLOCKER** —— repo 內無憑證，`docs/release.md` §4 已寫好步驟但從未執行 |
+| Implementation | Complete (Domain, Bluetooth, System, Diagnostics, Runtime, AppKit/App) |
+| Automated verification | `check-boundaries.sh` + `swift build` + `swift test` + bundle; CI runs the same set on every PR, with a hosted green run on `main` |
+| Real-device verification | **Primary path verified** — iPhone distance matrix (1 m / 3 m / 8 m), identity stability, Auto Lock, Wake on Return, Touch ID and Apple Watch unlock all measured on real hardware. Apple Watch / iPad reboot and forget-re-pair scenarios, and beacon support, are **not yet measured** — see the spike table below |
+| Signing and notarization | **External blocker** — no credentials in the repo; `docs/release.md` §4 documents the exact steps and `scripts/sign-and-notarize.sh` / `scripts/make-dmg.sh` are prepared and fail closed without them |
 
-## App 做什麼
+## What the app does
 
 ```text
 Presence Detection → Automatic Protection → Native Authentication Handoff
 ```
 
-App **不持有登入密碼、不模擬輸入密碼、不執行 authentication**；authentication 交還給 macOS（Touch ID／Apple Watch／密碼）。
+The app **never holds your login password, never types it, and never performs authentication itself**; authentication is always handed back to macOS (Touch ID / Apple Watch / password).
 
-| 功能 | 機制 | 邊界 |
+| Feature | Mechanism | Boundary |
 |---|---|---|
-| **Auto Lock** | 判定使用者離開後，經由 display-sleep 路徑要求鎖定（IOKit `IODisplayWrangler` 的 `IORequestIdle`，退回 `pmset displaysleepnow`），再**向 `ScreenStateProviding` 確認結果**才算成功 | 使用者若未設「睡眠後立即要求密碼」，顯示器會睡但不會鎖 —— 這正是需要確認而非信任的原因 |
-| **Wake on Return** | 使用者回來時呼叫 `IOPMAssertionDeclareUserActivity` 點亮顯示器，交還登入畫面 | **只在 Mac 醒著、顯示器睡眠或已鎖定時有效。不宣稱能把 Mac 從 system sleep 喚醒** —— 第三方 App 沒有 supported 機制做到（`docs/specs/system-integration.md` §4）。SPIKE-003 實測 display sleep + locked 下 3/3 於 ≤ 150 ms 點亮、免權限、鎖定不變；點亮後無輸入約 33 s 會再度熄滅 |
-| **Diagnostics** | 環形緩衝記錄 transition／decision／rationale，UI 可回答「為什麼剛才鎖了？」，匯出為去識別化 JSON | 匯出前過濾敏感樣式，未通過就不寫檔（fail-closed） |
+| **Auto Lock** | After deciding the user has left, requests a lock via the display-sleep path (`pmset displaysleepnow`, with an IOKit `IORequestIdle` fallback), then **confirms the result against `ScreenStateProviding`** before calling it successful | If the user has not enabled "require password immediately after sleep," the display sleeps but does not lock — which is exactly why the outcome is confirmed rather than trusted |
+| **Wake on Return** | Calls `IOPMAssertionDeclareUserActivity` to light the display and hand back the login screen when the user returns | **Only works while the Mac itself is awake, with the display asleep or locked. Threshold does not claim to wake the Mac from full system sleep** — no third-party app has a supported mechanism to do that (`docs/specs/system-integration.md` §4). Measured: display-sleep + locked wake succeeded 3/3 in ≤150 ms with no permission prompt and the lock state unchanged; the login screen re-sleeps after ~33 s of no input |
+| **Diagnostics** | A ring buffer records transitions, decisions and their rationale so the UI can answer "why did it just lock?"; exportable as de-identified JSON | Sensitive patterns are filtered before export, and export fails closed if the filter can't confirm the result is clean |
 
-Mac 進入完全睡眠後，使用者第一次按鍵／觸碰觸控板喚醒它，之後 Touch ID／Apple Watch 照常接手（SPIKE-006：內建 Touch ID 一碰即解鎖，5/5，延遲 370–624 ms；SPIKE-005：Apple Watch 9/9，含本 App 掃描同時進行的 2 次，掃描未觀察到干擾）。
+Once the Mac enters full system sleep, the first key press or trackpad touch after that is the user's own — Touch ID and Apple Watch then take over as usual (measured: built-in Touch ID unlocked in 5/5 one-tap trials, 370–624 ms; Apple Watch unlocked in 9/9 trials, including 2 with Threshold's own Bluetooth scan actively running with no observed interference).
 
-## 三條原則（見 docs/decisions）
+## Three principles (see docs/decisions)
 
-1. Domain owns temporal rules but never owns time.（ADR-003）
-2. Absence of evidence is not evidence of absence.（ADR-008）
-3. A device is supported only if its presence can be observed reliably through supported APIs.（ADR-009）
+1. Domain owns temporal rules but never owns time. (ADR-003)
+2. Absence of evidence is not evidence of absence. (ADR-008)
+3. A device is supported only if its presence can be observed reliably through supported APIs. (ADR-009)
 
-## 隱私（ADR-007）
+## Privacy (ADR-007)
 
-- 預設**本機處理、無雲端、無帳號、無 telemetry**。MVP 不依賴任何雲端服務。
-- 診斷紀錄禁止寫入密碼、任何憑證、完整 identifier／MAC（以 process 內穩定別名 `device-N` 代替，別名表不匯出）。
-- 匯出檔去識別化，並在寫出前跑一次匿名性檢查。
-- 測試 fixtures 同規則：`scripts/check-boundaries.sh` 會擋下含 UUID 或 MAC 的 fixture；廣播名稱與 wall-clock 由 `rssi-record` 在寫檔時就不產生。
+- **Local-only by default: no cloud, no account, no telemetry.** Nothing in this release depends on any cloud service.
+- Diagnostics may never contain a password, any credential, or a full identifier/MAC address (a stable per-process alias `device-N` is used instead; the alias table itself is never exported).
+- Exported files are de-identified, and an anonymity check runs before anything is written.
+- The same rule applies to test fixtures: `scripts/check-boundaries.sh` rejects any fixture containing a UUID or MAC address; `rssi-record` never writes advertised names or wall-clock timestamps into a fixture in the first place.
 
-## 建置、測試、打包
+## Build, test, package
 
 ```bash
-scripts/check-boundaries.sh                  # 架構與隱私邊界
+scripts/check-boundaries.sh                  # architecture and privacy boundaries
 swift build
 swift test
 scripts/make-app-bundle.sh release           # → build/Threshold.app
 swift build --package-path Tools/rssi-record
 ```
 
-需求：macOS 14.0 以上（deployment target）、Swift 6 language mode。開發與 CI 都不需要 Xcode 專案，App 是 SwiftPM executable（ADR-011）。`make-app-bundle.sh` 產出的 bundle **未簽章**，不可作為散布產物；散布流程見 `docs/release.md`。
+Requirements: macOS 14.0+ (deployment target), Swift 6 language mode. Neither development nor CI needs an Xcode project — the app is a SwiftPM executable (ADR-011). The bundle produced by `make-app-bundle.sh` is **unsigned** and is not a distributable artifact; see `docs/release.md` for the release process.
 
-| Target | 內容 |
+| Target | Contents |
 |---|---|
-| `ThresholdDomain` | 純邏輯：observation 驗證、訊號管線、presence 評分、三軸狀態機、Policy、ledger、calibration。只依賴 stdlib |
-| `ThresholdBluetooth` | CoreBluetooth adapter、三通道 stream、`DeviceRegistry`、Fake |
-| `ThresholdSystem` | macOS providers／controllers／stores（唯一允許出現未文件化訊號的地方，ADR-004） |
-| `ThresholdDiagnostics` | 葉 target：環形緩衝、privacy filter、匯出 |
-| `ThresholdRuntime` | `Coordinator` actor、diagnostics bridge、wiring |
-| `ThresholdAppKit` | `AppContainer` composition root、`AppModel`、onboarding／calibration 狀態機 |
-| `ThresholdApp` | SwiftUI `MenuBarExtra` 與 `@main`，僅此而已 |
+| `ThresholdDomain` | Pure logic: observation validation, the signal pipeline, presence scoring, the three-axis state machine, Policy, the ledger, calibration. Depends only on the standard library |
+| `ThresholdBluetooth` | CoreBluetooth adapter, the three-channel stream contract, `DeviceRegistry`, a fake for tests |
+| `ThresholdSystem` | macOS providers/controllers/stores — the only place an undocumented signal is allowed to appear (ADR-004) |
+| `ThresholdDiagnostics` | Leaf target: ring buffer, privacy filter, export |
+| `ThresholdRuntime` | The `Coordinator` actor, diagnostics bridge, wiring |
+| `ThresholdAppKit` | The `AppContainer` composition root, `AppModel`, onboarding/calibration state machines |
+| `ThresholdApp` | The SwiftUI `MenuBarExtra` and `@main` — nothing else |
 
-## 工具
+## Tools
 
-| 工具 | 用途 |
+| Tool | Purpose |
 |---|---|
-| `Tools/rssi-record` | **維護中**。MVP 1B field recorder，驅動 production 的 `CoreBluetoothScanner`，把實機訊號寫成 `Tests/Fixtures/BLE/` 的匿名 replay fixture，並輸出 SPIKE-009 §C 指標。內含補完 SPIKE-009 矩陣的逐項 field protocol |
-| `Tools/spikes/ble-observe` | Throwaway。SPIKE-009／004 的掃描探針 |
-| `Tools/spikes/screen-state` | Throwaway。SPIKE-001／007／008 的鎖定與 idle 探針 |
-| `Tools/spikes/wake-display` | Throwaway。SPIKE-003 的 `IOPMAssertionDeclareUserActivity` 探針 |
+| `Tools/rssi-record` | **Maintained.** The MVP 1B field recorder — drives the production `CoreBluetoothScanner`, writes anonymised real-device signal into replay fixtures under `Tests/Fixtures/BLE/`, and prints the SPIKE-009 §C metrics. Includes the field protocol for anyone completing the remaining SPIKE-009 matrix |
+| `Tools/spikes/ble-observe` | Throwaway. The scanning probe behind SPIKE-009/004 |
+| `Tools/spikes/screen-state` | Throwaway. The lock and idle probe behind SPIKE-001/007/008 |
+| `Tools/spikes/wake-display` | Throwaway. The `IOPMAssertionDeclareUserActivity` probe behind SPIKE-003 |
 
-Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CBPeripheral.identifier` 與裝置廣播名稱。
+Raw spike output lives under `Tools/spikes/out/` and is **gitignored**: it contains `CBPeripheral.identifier` values and advertised device names.
 
-## Spike 狀態
+## Spike status
 
-**未執行前不寫結果。** 有量測但成功條件未完整驗證時為 `PARTIAL`，每份 PARTIAL 文件內都有 `## Evidence` 與明確的「Not yet measured」清單。
+**No result is written before the experiment runs.** A spike with measurements but an incompletely verified success criterion is `PARTIAL`; every `PARTIAL` document carries an `## Evidence` section and an explicit "not yet measured" list.
 
-| ID | 問題 | 阻擋 | 順序 | Status |
+| ID | Question | Gates | Order | Status |
 |---|---|---|---|---|
-| SPIKE-009 | 我們宣稱支援的裝置能否被穩定觀察 | MVP 1A | **1** | PARTIAL（2026-09-03：iPhone CONDITIONAL GO；Watch 僅近距離；iPad CONDITIONAL） |
-| SPIKE-004 | CoreBluetooth 生命週期 | MVP 1A | 1（同批） | PARTIAL（2026-09-02） |
-| SPIKE-001 | 鎖定狀態偵測 | MVP 3 | 2（MVP 2 期間） | PARTIAL（2026-09-02） |
-| SPIKE-007 | 鎖定方法 | MVP 3 | 2 | PARTIAL（pmset GO n=16／50；IOKit NO-GO 此機型，已修正預設順序並實機驗證，2026-09-03） |
-| SPIKE-008 | 輸入閒置偵測 | MVP 3（silence policy） | 2 | CONDITIONAL GO（2026-09-02；`.hidSystemState`，鎖定時 nil） |
-| SPIKE-003 | 喚醒行為與 system sleep 邊界 | MVP 4 | 3（MVP 3 期間） | PARTIAL（2026-09-02，display sleep 3/3） |
-| SPIKE-005 | Apple Watch 解鎖互動 | MVP 4 | 3 | CONDITIONAL GO（掃描不干擾，n=9，2026-09-03） |
-| SPIKE-006 | Touch ID 互動 | MVP 4 | 3 | GO（內建鍵盤，n=5，2026-09-03） |
-| SPIKE-002 | loginwindow 偵測 | MVP 6 | 4（MVP 5 後） | NOT RUN |
+| SPIKE-009 | Can the device classes we claim to support be observed reliably? | MVP 1A | **1** | PARTIAL (2026-09-03: iPhone CONDITIONAL GO; Watch near-distance only; iPad CONDITIONAL) |
+| SPIKE-004 | CoreBluetooth lifecycle | MVP 1A | 1 (same batch) | PARTIAL — display-sleep and Bluetooth off→on both GO (2026-09-03) |
+| SPIKE-001 | Screen lock state detection | MVP 3 | 2 (during MVP 2) | PARTIAL (2026-09-02) |
+| SPIKE-007 | Lock method | MVP 3 | 2 | PARTIAL — `pmset` path GO (n=16/50, including one real end-to-end departure); IOKit `IORequestIdle` NO-GO on this hardware, default order corrected (2026-09-03) |
+| SPIKE-008 | Input-idle detection | MVP 3 (silence policy) | 2 | CONDITIONAL GO (2026-09-02; `.hidSystemState`, nil while locked) |
+| SPIKE-003 | Wake behaviour and the system-sleep boundary | MVP 4 | 3 (during MVP 3) | PARTIAL — display-sleep wake GO, confirmed again in a real end-to-end run (2026-09-03) |
+| SPIKE-005 | Apple Watch unlock interaction | MVP 4 | 3 | CONDITIONAL GO — scan does not interfere, n=9 (2026-09-03) |
+| SPIKE-006 | Touch ID interaction | MVP 4 | 3 | GO — built-in keyboard, n=5 (2026-09-03) |
+| SPIKE-002 | loginwindow detection | MVP 6 | 4 (after MVP 5) | NOT RUN — MVP 6 only (Assisted Unlock, not in v1.0) |
 
-## 支援裝置（evidence-based，2026-09-03）
+## Supported devices (evidence-based, 2026-09-03)
 
-依 ADR-009，只有 SPIKE-009 有證據的類別才列入，且以 spike 自己的判定用語標示。距離分段（1 m 桌上／3 m 口袋／8 m 隔壁房間、門關上）為 2026-09-03 晚間受控量測，每段 600 s。
+Per ADR-009, only classes SPIKE-009 has evidence for are listed, labeled with the spike's own verdict language. The distance segments (1 m on the desk / 3 m in a pocket / 8 m in the next room behind a closed door) are a controlled measurement from the evening of 2026-09-03, 600 s each.
 
-| 類別 | 判定 | 證據 | 尚未量測 |
+| Class | Verdict | Evidence | Not yet measured |
 |---|---|---|---|
-| iPhone（同 Apple ID） | **CONDITIONAL GO** | 三段 receiving 皆 **100%**；最長 gap 10.2／9.9／9.0 s；RSSI 中位 −50／−60／−68，隨距離單調且四分位區間可分離。**全程鎖定、螢幕熄滅**，隔著關上的門 8 m 仍 100% 可觀測。identifier 跨 ~22.5 h 不變 | `desk-1m` 的 10.2 s 略超過 ≤10 s 門檻；reboot、BT off→on、forget／re-pair；20 分鐘版本的分段 |
-| Apple Watch（同 Apple ID） | **CONDITIONAL（僅近距離）** | 1 m 98.4%／gap 9.9 s、3 m 100%／gap 7.1 s | **8 m 不達標**：83.6%、最長 gap 25.7 s、13 次 >10 s 空窗。RSSI 非單調（1 m 中位 −59、3 m −41），不可用於距離校正 |
-| iPad（同 Apple ID） | **CONDITIONAL** | 1 h 未控距離：receiving 100%、最長 gap 9.9 s；identifier 跨 ~22.5 h 不變 | 距離分段、reboot、BT off→on、forget／re-pair |
-| Generic BLE beacon | UNKNOWN，不列入 | — | 全部 |
-| 另一台 Mac／AirPods | 只有觀察，不列入 | 間歇（33%／48% 視窗） | — |
+| **iPhone** (same Apple ID) | **CONDITIONAL GO** | 100% receiving at all three distances; longest gap 10.2 / 9.9 / 9.0 s; median RSSI −50 / −60 / −68, monotonic with distance and separable. **Locked, screen off, the whole time** — still 100% observable through a closed door at 8 m. Identifier unchanged across ~22.5 h | `desk-1m`'s 10.2 s slightly exceeds the ≤10 s bar; reboot, Bluetooth off→on, forget/re-pair; a 20-minute-per-segment version of this run |
+| Apple Watch (same Apple ID) | **CONDITIONAL — near distance only** | 1 m: 98.4% / 9.9 s gap. 3 m: 100% / 7.1 s gap | **Fails at 8 m**: 83.6% receiving, 25.7 s longest gap, 13 gaps over 10 s. RSSI is non-monotonic (median −59 at 1 m, −41 at 3 m) — not usable for distance calibration |
+| iPad (same Apple ID) | **CONDITIONAL** | 1 h, uncontrolled distance: 100% receiving, 9.9 s longest gap; identifier unchanged across ~22.5 h | Distance segments, reboot, Bluetooth off→on, forget/re-pair |
+| Generic BLE beacon | UNKNOWN — not listed | — | Everything |
+| Another Mac / AirPods | Observed only, not listed | Intermittent (33% / 48% of windows) | — |
 
-條件的含義：CONDITIONAL 表示「同 Apple ID、藍牙開啟」下達到 SPIKE-009 §C 的門檻（≥ 95%、gap ≤ 10 s），identity 的 reboot／BT 切換情境仍待驗證。**Apple Watch 的條件更窄**：它是「人在座位附近」的良好證據，但在離開距離會失去觀測，不可作為「已離開」的唯一依據——這正是 ADR-008「證據不足不等於不在場」在裝置選擇上的體現。所有量測皆為單一 Apple Silicon Mac（`Mac17,2`，M5）× macOS 26.6.2，`withServices: nil`、`allowDuplicates: true`，不需 companion app、service UUID 或連線。補完方式見 `Tools/rssi-record/README.md` 的 Field protocol。
+What "CONDITIONAL" means: the SPIKE-009 §C bar (≥95% receiving, gap ≤10 s) is met under "same Apple ID, Bluetooth on"; the reboot/Bluetooth-toggle identity scenarios are still open. **Apple Watch's condition is narrower**: it's a good signal that you're nearby, but loses observability at leaving distance and should not be the sole signal that you've left — a direct application of ADR-008 ("absence of evidence is not evidence of absence") to device selection. All measurements are from a single Apple Silicon Mac (`Mac17,2`, M5) × macOS 26.6.2, `withServices: nil`, `allowDuplicates: true` — no companion app, service UUID, or connection required. The protocol for closing the remaining gaps is in `Tools/rssi-record/README.md`.
 
 ## Roadmap
 
-| 里程碑 | 內容 | 狀態 |
+| Milestone | Content | Status |
 |---|---|---|
-| MVP 0 | Engineering Foundation | 完成 |
-| SPIKE-009 | Trusted Device Observability（GO／NO-GO 閘門） | PARTIAL —— 矩陣待實機補完 |
-| MVP 1A | BLE Discovery／Observation | 完成 |
-| MVP 1B | Recorded Field Data Collection | 工具完成；實機錄製待跑 |
-| MVP 2 | Presence Engine | 完成 |
-| MVP 3 | Auto Lock | 已實作，待實機驗證 |
-| MVP 4 | Wake + Native Handoff | 已實作，待實機驗證 |
-| MVP 5 | Public Alpha | 待簽章與 notarization |
-| MVP 6 | Security Spike（Assisted Typed Unlock） | 不保證進 v1 |
-| v1.0 | Reliable + Secure + Diagnosable + Maintainable | —— |
+| MVP 0 | Engineering Foundation | Complete |
+| SPIKE-009 | Trusted Device Observability (GO/NO-GO gate) | PARTIAL — primary path (iPhone) verified; secondary-device matrix outstanding |
+| MVP 1A | BLE Discovery / Observation | Complete |
+| MVP 1B | Recorded Field Data Collection | Tooling complete; real-device recording in progress |
+| MVP 2 | Presence Engine | Complete |
+| MVP 3 | Auto Lock | Implemented and verified end to end on real hardware |
+| MVP 4 | Wake + Native Handoff | Implemented and verified end to end on real hardware |
+| MVP 5 | Public Beta | **This release** — signing/notarization still pending |
+| MVP 6 | Security Spike (Assisted Typed Unlock) | Not guaranteed to ship in v1 |
+| v1.0 | Reliable + Secure + Diagnosable + Maintainable | — |
 
-## 文件地圖
+## Documentation map
 
-| 位置 | 內容 |
+| Location | Contents |
 |---|---|
-| `docs/specs/architecture.md` | Target 切分、依賴方向、composition root、concurrency |
-| `docs/specs/proximity-domain.md` | Domain model、訊號管線、三軸狀態、Policy、ledger、calibration |
-| `docs/specs/security.md` | 安全邊界、fail-closed 規則、威脅模型、UnlockSafetyGuard（reserved） |
-| `docs/specs/bluetooth.md` | CoreBluetooth adapter、三通道 stream、Sendable 契約 |
-| `docs/specs/system-integration.md` | macOS providers／controllers、生命週期、sleep 語意 |
-| `docs/specs/testing.md` | 四層測試、fixtures、必備回歸測試、實機矩陣 |
+| `docs/specs/architecture.md` | Target boundaries, dependency direction, composition root, concurrency |
+| `docs/specs/proximity-domain.md` | Domain model, signal pipeline, the three-axis state machine, Policy, ledger, calibration |
+| `docs/specs/security.md` | Security boundaries, fail-closed rules, threat model, `UnlockSafetyGuard` (reserved) |
+| `docs/specs/bluetooth.md` | CoreBluetooth adapter, the three-channel stream, Sendable contract |
+| `docs/specs/system-integration.md` | macOS providers/controllers, lifecycle, sleep semantics |
+| `docs/specs/testing.md` | The four test layers, fixtures, required regression tests, the real-device matrix |
 | `docs/decisions/` | ADR-001 … ADR-011 |
-| `docs/spikes/` | SPIKE-001 … SPIKE-009 與各自的 Evidence |
-| `docs/plans/` | Implementation plans 與 v1.0 recovery roadmap |
-| `docs/release.md` | 從 clean checkout 到可散布 `.app`；簽章與 notarization 為 external blocker |
+| `docs/spikes/` | SPIKE-001 … SPIKE-009 and their evidence |
+| `docs/plans/` | Implementation plans and the v1.0 recovery roadmap |
+| `docs/release.md` | The full path from a clean checkout to a distributable `.app`; signing and notarization are an external blocker |
+| `docs/release-readiness-2026-09-03.md` | The full v1.0 readiness report this beta ships against |
 
-## 授權
+## License
 
-核心：Apache-2.0（見 LICENSE）+ DCO + 商標保護（TRADEMARK.md）。詳見 ADR-005。
+Core license: Apache-2.0 (see LICENSE) + DCO + trademark protection (TRADEMARK.md). Details in ADR-005.

@@ -3,6 +3,11 @@
 All notable changes are recorded here. Format: Keep a Changelog; versions follow SemVer.
 
 ## [Unreleased]
+
+## [1.0.0-beta.1] - 2026-09-03
+
+First public release. **Beta**: real-device evidence covers the primary path (iPhone as trusted device, Auto Lock, Wake on Return, Touch ID and Apple Watch native unlock), but the full SPIKE-009 device matrix, code signing/notarization, and a public trademark check are still open — see `docs/release-readiness-2026-09-03.md` for the exact state this tag ships in.
+
 ### Added
 - MVP 0 — Engineering Foundation: SwiftPM package, Observation core types, `scripts/check-boundaries.sh`, CI, specs, ADRs, spike plans.
 - Domain — observation: `ObservationValidator` (monotonic time, RSSI range, sentinel rejection), `DeviceID`, `MonotonicInstant`, `SensorStatus`.
@@ -28,3 +33,6 @@ All notable changes are recorded here. Format: Keep a Changelog; versions follow
 - Specs amended: `proximity-domain.md` §6.2 (the snippet now lists `AcknowledgeResult.failed`, which §6.4 already required) and §7.3 (the default-profile gate short circuit, so a persisted placeholder can never arm). `system-integration.md` §1 records the SPIKE-001 finding that a missing `CGSSessionScreenIsLocked` key means unlocked rather than unknown, and the SPIKE-008 choice of `.hidSystemState`; §4's display-asleep row moves from expectation to measurement.
 - ADR-011 amended: Xcode is now installed on the development machine and the decision stands; the App layer is split so `ThresholdAppKit` is testable under `swift test`.
 - ADR-009 amended with the evidence status and the wording rule for user-facing text (「已觀察到」, not 「支援」, until the device matrix is run).
+
+[Unreleased]: https://github.com/yusyuan9224/threshold/compare/v1.0.0-beta.1...HEAD
+[1.0.0-beta.1]: https://github.com/yusyuan9224/threshold/releases/tag/v1.0.0-beta.1
