@@ -14,7 +14,7 @@ import ThresholdDomain
             registry: DeviceRegistry(devices: [RegisteredDevice(id: Fixtures.deviceA, name: "Phone")]),
             calibrationGate: .armed(Fixtures.profile)
         )
-        model.sensorStatusChanged(.available)
+        model.receive(sensor: .healthy)
         return model
     }
 
@@ -38,18 +38,18 @@ import ThresholdDomain
 
     /// security.md §2 rule 2: a non-healthy sensor stops automation, and the UI must say so.
     @Test(arguments: [
-        SensorStatus.unavailable(.poweredOff),
+        SensorHealth.unavailable(.poweredOff),
         .unavailable(.unauthorized),
         .unavailable(.unsupported),
         .unavailable(.scannerFailed),
         .degraded(.resetting),
         .degraded(.scanInterrupted),
     ])
-    func anyUnhealthySensorPauses(_ status: SensorStatus) {
+    func anyUnhealthySensorPauses(_ health: SensorHealth) {
         let model = armedModel()
-        model.sensorStatusChanged(status)
+        model.receive(sensor: health)
         guard case .paused = model.protectionStatus else {
-            Issue.record("expected paused for \(status), got \(model.protectionStatus)")
+            Issue.record("expected paused for \(health), got \(model.protectionStatus)")
             return
         }
         #expect(model.degradedBanner?.hasPrefix("Bluetooth unavailable — automatic protection is paused.") == true)
@@ -59,7 +59,7 @@ import ThresholdDomain
     /// user to do 40 seconds of measurement that cannot possibly help.
     @Test func sensorFaultOutranksAnUnarmedGate() {
         let model = AppModel(registry: DeviceRegistry(devices: [RegisteredDevice(id: Fixtures.deviceA, name: "Phone")]))
-        model.sensorStatusChanged(.unavailable(.poweredOff))
+        model.receive(sensor: .unavailable(.poweredOff))
         #expect(model.calibrationGate == .notArmed(.noProfile))
         #expect(model.protectionStatus == .paused(reason: "Bluetooth is turned off"))
     }
@@ -67,7 +67,7 @@ import ThresholdDomain
     /// security.md §2 rule 4.
     @Test func unarmedCalibrationBlocksEvenWithAHealthySensor() {
         let model = AppModel(registry: DeviceRegistry(devices: [RegisteredDevice(id: Fixtures.deviceA, name: "Phone")]))
-        model.sensorStatusChanged(.available)
+        model.receive(sensor: .healthy)
         #expect(model.protectionStatus == .notArmed(reason: PlainLanguage.notArmed(.noProfile)))
     }
 
@@ -90,13 +90,13 @@ import ThresholdDomain
 
     @Test func onlyAnUnauthorizedOrOffRadioOffersASettingsShortcut() {
         let model = armedModel()
-        model.sensorStatusChanged(.unavailable(.unauthorized))
+        model.receive(sensor: .unavailable(.unauthorized))
         #expect(model.bluetoothRemedy == .openPrivacySettings)
-        model.sensorStatusChanged(.unavailable(.poweredOff))
+        model.receive(sensor: .unavailable(.poweredOff))
         #expect(model.bluetoothRemedy == .openBluetoothSettings)
-        model.sensorStatusChanged(.unavailable(.unsupported))
+        model.receive(sensor: .unavailable(.unsupported))
         #expect(model.bluetoothRemedy == nil)
-        model.sensorStatusChanged(.available)
+        model.receive(sensor: .healthy)
         #expect(model.bluetoothRemedy == nil)
         #expect(model.degradedBanner == nil)
     }
@@ -124,13 +124,15 @@ import ThresholdDomain
         #expect(!text.lowercased().contains("confirmed"))
     }
 
-    /// The `AppEventSink` stand-in must move the sensor axis only. Manufacturing a presence
-    /// belief from a radio event is the exact conflation ADR-008 forbids.
-    @Test func sensorStatusNeverMovesThePresenceAxis() {
+    /// A radio fact is not a user fact. The model mirrors whatever presence the engine put in
+    /// the snapshot and never derives one from the sensor axis — the exact conflation ADR-008
+    /// forbids, and the one the Coordinator's `sensorRestored` reset exists to make explicit.
+    @Test func sensorHealthNeverMovesThePresenceAxis() {
         let model = AppModel()
-        model.sensorStatusChanged(.available)
+        model.receive(sensor: .healthy)
         #expect(model.presence == .unknown(.initial))
-        model.sensorStatusChanged(.unavailable(.poweredOff))
+        #expect(model.sensorHealth == .healthy)
+        model.receive(sensor: .unavailable(.poweredOff))
         #expect(model.presence == .unknown(.initial))
         #expect(model.evidence == .none)
     }

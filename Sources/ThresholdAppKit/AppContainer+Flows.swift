@@ -1,5 +1,6 @@
 import ThresholdBluetooth
 import ThresholdDomain
+import ThresholdRuntime
 
 /// Onboarding and calibration, which are the two places the App layer drives the scanner
 /// directly rather than through the Coordinator.
@@ -72,13 +73,27 @@ extension AppContainer: OnboardingActions {
     /// Scanning is narrowed to the single device being calibrated: `startScanning(for:)` is
     /// the filter, so no other trusted device's advertisements can land in the session and
     /// blur the baselines.
+    ///
+    /// **The Coordinator keeps running, and must not act.** A calibration run is the user
+    /// deliberately walking away from their Mac and back; to the presence engine that is
+    /// indistinguishable from a departure, and left alone it would lock the screen in the
+    /// middle of a measurement. Both automatic actions are therefore forced off for the
+    /// duration by sending `effectiveSettings` — the fail-closed choice, and one the engine
+    /// needs to know nothing about. They come back when `endCalibration()` sends the settings
+    /// again, derived from `model.settings` as it stands *then*, so a change the user made in
+    /// the Settings window while calibrating is not undone.
+    ///
+    /// The samples come from `tee.openCalibrationTap()` rather than `scanner.observations`,
+    /// which the Coordinator is already iterating; see `ObservationTee` for why sharing that
+    /// one property between the two would halve both.
     @discardableResult
     public func beginCalibration(device: DeviceID) -> CalibrationFlow {
         endCalibration(restoreScanning: false)
         let flow = CalibrationFlow(device: device, policy: calibrationPolicy)
         calibration = flow
         scanner.startScanning(for: [device])
-        let stream = scanner.observations
+        send(.settingsChanged(effectiveSettings))
+        let stream = tee.openCalibrationTap()
         calibrationTask = Task { [weak self] in
             for await observation in stream {
                 guard let self else { return }
@@ -88,12 +103,26 @@ extension AppContainer: OnboardingActions {
         return flow
     }
 
-    /// Ends the run and puts scanning back the way it was.
+    /// Ends the run, resets the pipeline, and puts the user's settings back.
+    ///
+    /// `armScanning()` also sends `.devicesChanged`, which makes the Coordinator rebuild its
+    /// engines and reset presence. That is the point: whatever belief it formed while the scan
+    /// was narrowed to one device being carried around the room is discarded rather than
+    /// carried into normal operation, and presence has to be earned again from fresh samples.
+    ///
+    /// **Reset first, re-enable second.** A calibration run ends with the engine believing the
+    /// user is `away`, because the second half of the measurement is them standing across the
+    /// room. Restoring Auto Lock before discarding that belief would lock the screen the instant
+    /// the run finished — in front of a user who is sitting back down. The input stream keeps
+    /// the two in the order they are sent, so this ordering is the whole fix.
     public func endCalibration(restoreScanning: Bool = true) {
         calibrationTask?.cancel()
         calibrationTask = nil
+        tee.closeCalibrationTap()
+        let wasCalibrating = calibration != nil
         calibration = nil
         if restoreScanning { armScanning() }
+        if wasCalibrating { send(.settingsChanged(effectiveSettings)) }
     }
 
     /// Persists a finished calibration, replacing any previous record for the same device, and
@@ -111,9 +140,9 @@ extension AppContainer: OnboardingActions {
             try calibrationStore.save(records)
         } catch {
             calibrationRecords = previous
-            model.calibrationGate = currentGate()
+            publishGate()
             throw error
         }
-        model.calibrationGate = currentGate()
+        publishGate()
     }
 }

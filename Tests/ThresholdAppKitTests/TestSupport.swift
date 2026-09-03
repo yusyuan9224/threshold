@@ -60,12 +60,45 @@ enum Fixtures {
         )
     }
 
+    /// A `ProximitySnapshot` with one axis under test and the rest left at their initial
+    /// values, so a test about the sensor axis cannot accidentally assert about presence.
+    static func snapshot(
+        presence: PresenceState = .unknown(.initial),
+        evidence: PresenceEvidence = .none,
+        sensor: SensorHealth,
+        lastTransition: TransitionCause? = nil,
+        atSecond: Int64 = 0
+    ) -> ProximitySnapshot {
+        ProximitySnapshot(
+            presence: presence,
+            presenceSince: instant(seconds: atSecond),
+            episode: EpisodeID(1),
+            evidence: evidence,
+            lastTransition: lastTransition,
+            sensor: sensor,
+            devices: [:],
+            nextDeadline: nil
+        )
+    }
+
     /// Alternating values one second apart: enough samples and enough span to clear
     /// `CalibrationPolicy`'s 15-sample / 20-second minimums, with a MAD of 0.5 dB.
     static func steadySamples(centre: Int, count: Int = 25, fromSecond: Int64 = 0) -> [(rssi: Int, second: Int64)] {
         (0..<count).map { index in
             (rssi: index.isMultiple(of: 2) ? centre : centre - 1, second: fromSecond + Int64(index))
         }
+    }
+}
+
+@MainActor
+extension AppModel {
+    /// Drives the sensor axis the only way the app now can: through a whole snapshot.
+    ///
+    /// The model has no sensor-only entry point any more — sensor health reaches it folded
+    /// into `snapshotUpdated`, which is what stops the status line and the presence line from
+    /// ever describing two different moments.
+    func receive(sensor: SensorHealth) {
+        snapshotUpdated(Fixtures.snapshot(sensor: sensor))
     }
 }
 

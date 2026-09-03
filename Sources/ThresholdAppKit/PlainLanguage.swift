@@ -151,6 +151,121 @@ public enum PlainLanguage {
         }
     }
 
+    // MARK: - Transitions
+
+    /// The last thing that actually changed, as one sentence.
+    ///
+    /// Only the cause is rendered. `from`/`to` are engine vocabulary — "departing", "unknown"
+    /// — and putting them on screen would ask a user to learn a state machine in order to read
+    /// a status line. The cause is the observation that moved it, which is the part they can
+    /// check against the room they are standing in.
+    public static func transition(_ transition: ProximityTransition) -> String {
+        transitionCause(transition.cause)
+    }
+
+    public static func transitionCause(_ cause: TransitionCause) -> String {
+        switch cause {
+        case .confirmedNear: return "Your device's signal settled close by"
+        case .measuredFar: return "Your device's signal settled far away"
+        case .signalWeakened: return "Your device's signal started to fade"
+        case .signalRecovered: return "Your device's signal came back"
+        case .departureThenSilent: return "Your device faded, then stopped answering"
+        case .evidenceExpired: return "Your device has been quiet for too long to go on"
+        case .reset(let reason): return "Everything started over after \(resetCause(reason))"
+        case .sensorRestored: return "Bluetooth came back, so the measurement started over"
+        case .sensorBecameHealthy: return "Bluetooth started working"
+        case .sensorDegraded(let reason): return sensorHealth(.degraded(reason))
+        case .sensorUnavailable(let reason): return unavailable(reason)
+        case .sensorInitializing: return "Bluetooth is starting up"
+        case .deviceSilent: return "Your device stopped advertising"
+        case .deviceReceiving: return "Your device started advertising again"
+        }
+    }
+
+    // MARK: - Policy decisions
+
+    /// Why the last evaluation did or did not act, as one sentence. `nil` before the first one.
+    ///
+    /// A single evaluation carries the reasons from *both* branches — Auto Lock and Wake — plus
+    /// whatever the ledger had to say, so rendering the first entry would show a bookkeeping
+    /// note where a user expects an explanation. The most consequential entry is picked
+    /// instead: something that happened outranks something that was declined, and a real fault
+    /// outranks a switch the user turned off themselves.
+    public static func decision(_ rationale: [PolicyRationale]) -> String? {
+        var best: PolicyRationale?
+        for item in rationale where decisionRank(item) > decisionRank(best) {
+            best = item
+        }
+        return best.map(policyRationale)
+    }
+
+    /// Higher wins. `nil` ranks below everything, so the first real entry always beats it.
+    private static func decisionRank(_ rationale: PolicyRationale?) -> Int {
+        switch rationale {
+        case nil: return -1
+        case .proposed, .retrying: return 6
+        case .gaveUp: return 5
+        case .preconditionUnsatisfied, .preconditionIndeterminate: return 4
+        case .confirmed, .alreadyIssued: return 3
+        case .presenceUncertain, .insufficientEvidence, .noAbsenceEvidence, .userActive,
+             .supportingEvidenceMissing, .supportingEvidenceContradicts, .outsideWakeWindow:
+            return 2
+        case .waiting, .staleOutcome: return 1
+        case .disabledBySettings: return 0
+        }
+    }
+
+    public static func policyRationale(_ rationale: PolicyRationale) -> String {
+        switch rationale {
+        case .preconditionIndeterminate(let field):
+            return "Holding off — \(precondition(field)) is not something Threshold can be sure of right now"
+        case .preconditionUnsatisfied(let field):
+            return "Holding off — \(precondition(field))"
+        case .supportingEvidenceMissing:
+            return "Holding off — there is not enough supporting evidence"
+        case .supportingEvidenceContradicts:
+            return "Holding off — the supporting evidence points the other way"
+        case .userActive:
+            return "Holding off — you have been using this Mac"
+        case .insufficientEvidence:
+            return "Holding off — not enough readings yet"
+        case .noAbsenceEvidence:
+            return "Holding off — nothing suggests you have left"
+        case .waiting:
+            return "Waiting to see whether this holds"
+        case .disabledBySettings:
+            return "Nothing to do — the matching switch is off in Settings"
+        case .alreadyIssued:
+            return "Already done — waiting for it to be confirmed"
+        case .retrying(_, let attempt):
+            return "Trying again (attempt \(attempt))"
+        case .gaveUp:
+            return "Gave up after repeated failures"
+        case .confirmed:
+            return "Confirmed"
+        case .staleOutcome:
+            return "Ignored a result that arrived too late to mean anything"
+        case .outsideWakeWindow:
+            return "Holding off — too long has passed since you left to wake the display"
+        case .presenceUncertain:
+            return "Holding off — where you are is still uncertain"
+        case .proposed:
+            return "Acting now"
+        }
+    }
+
+    /// The five things that must all be known and right before anything automatic happens
+    /// (`RequiredPreconditions`), phrased as the problem rather than the field name.
+    public static func precondition(_ field: PreconditionField) -> String {
+        switch field {
+        case .sensor: return "Bluetooth is not reporting normally"
+        case .session: return "this login session is not the active one"
+        case .power: return "the Mac is not fully awake"
+        case .screen: return "the screen is not in a state worth changing"
+        case .calibration: return "calibration is not armed"
+        }
+    }
+
     // MARK: - Protection status
 
     /// The single line at the top of the menu.

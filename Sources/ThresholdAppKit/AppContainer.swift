@@ -3,19 +3,8 @@ import Observation
 import ThresholdBluetooth
 import ThresholdDiagnostics
 import ThresholdDomain
+import ThresholdRuntime
 import ThresholdSystem
-
-/// Adapts the system-wide `MonotonicClock` to the single operation the Bluetooth target
-/// declares for itself.
-///
-/// `ThresholdBluetooth` must not depend on `ThresholdSystem` (architecture.md §2.2), so it
-/// declares `BLEClock` — just `now()` — and the composition root bridges the two. This tiny
-/// struct is that bridge, and it is the reason the app has exactly one clock rather than two
-/// that can disagree.
-struct BLEClockAdapter: BLEClock {
-    let clock: any MonotonicClock
-    func now() -> MonotonicInstant { clock.now() }
-}
 
 /// The composition root (architecture.md §3): the only place in the app where a concrete
 /// adapter is constructed.
@@ -29,12 +18,13 @@ struct BLEClockAdapter: BLEClock {
 /// own, the scanner is confined to its own serial queue, and this class only ever receives
 /// already-`Sendable` values across those boundaries.
 ///
-/// **Coordinator seam.** The `Coordinator` actor (architecture.md §5) is being written on
-/// `feat/runtime-coordinator` and is deliberately not referenced here. Until it lands, this
-/// container drives the sensor axis straight from the scanner's `sensorStates` channel and
-/// leaves presence at `unknown(.initial)`, which the UI shows honestly. Wiring the Coordinator
-/// in means replacing `runSensorChannel()` with a subscription that feeds `AppEventSink`; no
-/// other method changes.
+/// **Coordinator.** `start()` builds the two Domain engines and hands them to the `Coordinator`
+/// actor (architecture.md §5) along with the production adapters. From then on this class does
+/// not touch the monitoring pipeline at all: it *sends* `CoordinatorInput` when the user
+/// changes something the Coordinator caches, and it *receives* `CoordinatorEvent` and mirrors
+/// it into `AppModel`. Presence, evidence, sensor health, transitions and rationale all arrive
+/// that way; nothing here recomputes them. See `AppContainer+Wiring.swift` for the two
+/// directions and `AppContainer+Lifecycle.swift` for the task handles.
 @MainActor
 @Observable
 public final class AppContainer {
@@ -54,6 +44,18 @@ public final class AppContainer {
     public let calibrationStore: any CalibrationStore
     public let settingsStore: any SettingsStore
     public let recorder: DiagnosticsRecorder
+
+    /// The scanner as the Coordinator and the calibration flow see it.
+    ///
+    /// `scanner.observations` is single-consumer, and both of those need it; the tee is what
+    /// stops them racing for the same advertisements. Every other call goes straight through
+    /// to `scanner`, so this is not a second scanning policy.
+    let tee: ObservationTee
+
+    // MARK: - Runtime
+
+    /// `nil` until `start()`, and again after `stop()`.
+    public internal(set) var coordinator: Coordinator?
 
     // MARK: - Environment
 
@@ -77,13 +79,32 @@ public final class AppContainer {
     /// a store failure part of a UI interaction.
     var calibrationRecords: [CalibrationRecord] = []
 
-    private var sensorTask: Task<Void, Never>?
-    private var diagnosticsTask: Task<Void, Never>?
+    // MARK: - Long-lived tasks (architecture.md §3: every handle is owned here)
+
+    /// Starts the Coordinator, then pumps `coordinatorInputs` into it.
+    ///
+    /// One task rather than a `Task` per call is what makes ordering decidable: `start()`
+    /// happens before every input, and a `.calibrationChanged` sent before a `.devicesChanged`
+    /// is seen in that order by the actor, which is the order the engine has to be rebuilt in.
+    var coordinatorTask: Task<Void, Never>?
+    /// Drains `Coordinator.events` into `AppModel` *and* `DiagnosticsBridge`.
+    ///
+    /// One subscription, two consumers. `events` is an `AsyncStream`, which hands each element
+    /// to exactly one iterator, so a second `for await` would steal events from the first and
+    /// the diagnostics trail would silently lose half of itself.
+    var eventsTask: Task<Void, Never>?
+    var diagnosticsTask: Task<Void, Never>?
     var discoveryTask: Task<Void, Never>?
     var calibrationTask: Task<Void, Never>?
 
+    var coordinatorInputs: AsyncStream<CoordinatorInput>.Continuation?
+
+    /// The sensor health last forwarded to `onboarding`, so an unchanged axis inside a changed
+    /// snapshot does not re-notify a flow that reacts to recovery by restarting discovery.
+    var lastForwardedSensorHealth: SensorHealth?
+
     /// A launch problem discovered before `start()` had somewhere to report it.
-    private var deferredStartupIssue: String?
+    var deferredStartupIssue: String?
 
     // MARK: - Construction
 
@@ -109,6 +130,7 @@ public final class AppContainer {
     ) {
         self.clock = clock
         self.scanner = scanner
+        self.tee = ObservationTee(scanner)
         self.screenState = screenState
         self.sessionState = sessionState
         self.powerState = powerState
@@ -183,7 +205,11 @@ public final class AppContainer {
 
         return AppContainer(
             clock: clock,
-            scanner: CoreBluetoothScanner(clock: BLEClockAdapter(clock: clock)),
+            // `MonotonicBLEClock` lives in ThresholdRuntime because that is the lowest layer
+            // allowed to see both Bluetooth and System (architecture.md §2.2): Bluetooth
+            // declares the narrow `BLEClock` protocol, and someone above both supplies it.
+            // One clock, so no two components can disagree about what "now" is.
+            scanner: CoreBluetoothScanner(clock: MonotonicBLEClock(clock)),
             screenState: screen,
             sessionState: session,
             powerState: MacOSPowerStateProvider(clock: clock),
@@ -258,103 +284,6 @@ public final class AppContainer {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.1.0"
     }
 
-    // MARK: - Lifecycle
-
-    /// Loads persisted state, arms scanning if there is a device to scan for, and starts the
-    /// long-lived tasks.
-    ///
-    /// Store failures are collected into `AppModel.startupIssues` instead of throwing. A
-    /// `settings.json` this build cannot read must not stop the app from launching, but it
-    /// must also never be silently replaced with defaults — the user is told, and the file is
-    /// left alone.
-    public func start() {
-        var issues: [String] = []
-        if let deferredStartupIssue {
-            issues.append(deferredStartupIssue)
-            self.deferredStartupIssue = nil
-        }
-
-        var registry = DeviceRegistry()
-        do {
-            for record in try deviceStore.load() {
-                registry = registry.adding(id: record.device, name: record.name)
-            }
-        } catch {
-            issues.append(StoreErrorText.describe(error))
-        }
-        model.registry = registry
-
-        do {
-            calibrationRecords = try calibrationStore.load()
-        } catch {
-            issues.append(StoreErrorText.describe(error))
-        }
-
-        do {
-            if let stored = try settingsStore.load() { model.settings = stored }
-        } catch {
-            issues.append(StoreErrorText.describe(error))
-        }
-
-        model.startupIssues = issues
-        model.calibrationGate = currentGate()
-        refreshLoginItemStatus()
-
-        needsOnboarding = registry.isEmpty
-        armScanning()
-
-        sensorTask = Task { [weak self] in await self?.runSensorChannel() }
-        diagnosticsTask = Task { [weak self] in await self?.runDiagnosticsPoll() }
-    }
-
-    /// Cancels every long-lived task and stops the scanner.
-    ///
-    /// Controller work already in flight is not cancelled: a lock that has been issued should
-    /// finish (architecture.md §5.4).
-    public func stop() {
-        sensorTask?.cancel(); sensorTask = nil
-        diagnosticsTask?.cancel(); diagnosticsTask = nil
-        discoveryTask?.cancel(); discoveryTask = nil
-        calibrationTask?.cancel(); calibrationTask = nil
-        scanner.stopDiscovery()
-        scanner.stopScanning()
-    }
-
-    /// Feeds the sensor axis until the Coordinator takes over this subscription.
-    ///
-    /// Also mirrors every status to `onboarding`, so the device-picker step can tell "still
-    /// looking" apart from "Bluetooth just reported `.unauthorized`" instead of spinning
-    /// forever (`OnboardingFlow.discoveryState`). Harmless when onboarding is `nil` or on a
-    /// different step: `sensorStatusChanged` only ever updates its own state.
-    private func runSensorChannel() async {
-        for await status in scanner.sensorStates {
-            model.sensorStatusChanged(status.value)
-            onboarding?.sensorStatusChanged(status.value)
-            await recorder.record(
-                category: .bluetoothLifecycle,
-                message: "sensor status \(status.value)",
-                monotonicNanoseconds: status.at.nanoseconds
-            )
-        }
-    }
-
-    /// Polls the recorder at 1 Hz (ADR-007), so high-frequency events never touch the main actor.
-    private func runDiagnosticsPoll() async {
-        while !Task.isCancelled {
-            model.diagnostics = await recorder.snapshot()
-            do {
-                try await clock.sleep(for: .seconds(1))
-            } catch {
-                return
-            }
-        }
-    }
-
-    /// Scans for exactly the registered devices, or not at all when there are none.
-    func armScanning() {
-        scanner.startScanning(for: model.registry.deviceIDs)
-    }
-
     // MARK: - Calibration gate
 
     /// Recomputes `CalibrationGate` for the current trusted device.
@@ -383,92 +312,6 @@ public final class AppContainer {
             appVersion: appVersion,
             nowUnixSeconds: nowUnixSeconds()
         )
-    }
-
-    // MARK: - Settings
-
-    /// Applies a change to `PolicySettings`, persists it, and reports a save failure.
-    ///
-    /// The in-memory value is updated even when the write fails, because refusing the toggle
-    /// the user just moved is more confusing than a switch that works now and warns that it
-    /// will not survive a relaunch.
-    public func updateSettings(_ transform: (inout PolicySettings) -> Void) {
-        var settings = model.settings
-        transform(&settings)
-        guard settings != model.settings else { return }
-        model.settings = settings
-        do {
-            try settingsStore.save(settings)
-        } catch {
-            model.startupIssues.append(StoreErrorText.describe(error))
-        }
-    }
-
-    public func setAutoLock(_ enabled: Bool) { updateSettings { $0.autoLock = enabled } }
-    public func setWakeOnReturn(_ enabled: Bool) { updateSettings { $0.wakeOnReturn = enabled } }
-    public func setLockOnDepartureThenSilent(_ enabled: Bool) {
-        updateSettings { $0.lockOnDepartureThenSilent = enabled }
-    }
-    public func setSilenceLock(_ policy: SilenceLockPolicy) { updateSettings { $0.silenceLock = policy } }
-
-    // MARK: - Devices
-
-    /// Adds or renames a trusted device and rearms scanning around the new set.
-    public func registerDevice(_ device: RegisteredDevice) throws {
-        let registry = model.registry.adding(device)
-        try persist(registry: registry)
-        armScanning()
-    }
-
-    public func renameDevice(_ id: DeviceID, to name: String) throws {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        try persist(registry: model.registry.renaming(id, to: trimmed))
-    }
-
-    /// Removes a trusted device **and** its calibration.
-    ///
-    /// The calibration goes with it deliberately. A profile is a measurement of one device's
-    /// signal in one room on one Mac; keeping it after the device is gone means that
-    /// re-adding a device with the same identifier later would silently arm automation on a
-    /// months-old measurement the user never re-took.
-    public func removeDevice(_ id: DeviceID) throws {
-        try persist(registry: model.registry.removing(id))
-        let remaining = calibrationRecords.filter { $0.device != id }
-        if remaining.count != calibrationRecords.count {
-            let previous = calibrationRecords
-            calibrationRecords = remaining
-            do {
-                try calibrationStore.save(remaining)
-            } catch {
-                calibrationRecords = previous
-                model.calibrationGate = currentGate()
-                throw error
-            }
-        }
-        model.calibrationGate = currentGate()
-        needsOnboarding = model.registry.isEmpty
-        armScanning()
-    }
-
-    /// Discards every stored calibration, leaving trusted devices registered.
-    public func resetCalibration() throws {
-        let previous = calibrationRecords
-        calibrationRecords = []
-        do {
-            try calibrationStore.save([])
-        } catch {
-            calibrationRecords = previous
-            throw error
-        }
-        model.calibrationGate = currentGate()
-    }
-
-    private func persist(registry: DeviceRegistry) throws {
-        let records = registry.devices.map { DeviceRecord(device: $0.id, name: $0.name) }
-        try deviceStore.save(records)
-        model.registry = registry
-        model.calibrationGate = currentGate()
     }
 
     // MARK: - Login item

@@ -6,10 +6,12 @@ import ThresholdDomain
 /// The menu-bar popover: status, what the app currently believes, the two switches, and the
 /// way into everything else.
 ///
-/// It is deliberately a *report* first and a control panel second. The top three lines answer
-/// "am I protected, what do you think is happening, and on the strength of what evidence" —
-/// which is the question a security tool driven by an inference has to be able to answer at a
-/// glance (ADR-007, ADR-008).
+/// It is deliberately a *report* first and a control panel second. The lines under the status
+/// answer "am I protected, what do you think is happening, on the strength of what evidence,
+/// what changed last, and what did you decide" — which is the question a security tool driven
+/// by an inference has to be able to answer at a glance (ADR-007, ADR-008). The last two lines
+/// come straight from the Coordinator's `transition` and `policyEvaluated` events, so what the
+/// menu says and what the diagnostics export says have one source.
 struct MenuContentView: View {
     let container: AppContainer
     @Environment(\.openWindow) private var openWindow
@@ -84,6 +86,18 @@ struct MenuContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let change = model.lastChangeDescription {
+                Text(change)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let decision = model.lastDecisionDescription {
+                Text(decision)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             DetailRow(title: "Trusted device") {
                 Text(model.trustedDeviceName ?? "None yet")
                     .fontWeight(.medium)
@@ -124,8 +138,10 @@ struct MenuContentView: View {
             Button("Settings…") { open(WindowID.settings) }
             DiagnosticsExportButton(container: container)
             Divider().padding(.vertical, 4)
+            // No `container.stop()` here: `terminate` routes through
+            // `AppDelegate.applicationShouldTerminate`, which stops the Coordinator before the
+            // scanner and holds termination until it has (architecture.md §3).
             Button("Quit Threshold") {
-                container.stop()
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")

@@ -60,10 +60,9 @@ public enum BluetoothRemedy: Sendable, Equatable {
 /// computes a Domain fact of its own — `protectionStatus` is the one derived value here, and
 /// it is a pure function of fields that were handed to it.
 ///
-/// Until the Coordinator lands (branch `feat/runtime-coordinator`), the container feeds the
-/// sensor channel directly from the scanner and leaves presence at its initial value. That
-/// is deliberately visible in the UI as "Still working out where you are" rather than hidden
-/// behind an optimistic default.
+/// Every field below is written by exactly one `CoordinatorEvent`, and until the first one
+/// arrives the model says so honestly: presence reads as "Still working out where you are"
+/// rather than defaulting to something more comfortable.
 @MainActor
 @Observable
 public final class AppModel {
@@ -152,6 +151,24 @@ public final class AppModel {
     /// Plain-language presence and its provenance, for the two lines under the status.
     public var presenceDescription: String { PlainLanguage.presence(presence) }
     public var evidenceDescription: String { PlainLanguage.evidence(evidence) }
+
+    /// The last thing that actually changed, in plain language. `nil` until something has.
+    ///
+    /// Shown because a status line alone cannot answer "why does it think that". A user who
+    /// disagrees with the current belief needs to see the moment it formed before they can
+    /// tell whether the app is wrong or the room is.
+    public var lastChangeDescription: String? {
+        lastTransition.map(PlainLanguage.transition)
+    }
+
+    /// Why the last policy evaluation did or did not act. `nil` before the first one.
+    ///
+    /// The rationale is the audit trail made visible (ADR-007). "Not locking: Bluetooth is not
+    /// reporting" is the difference between a user trusting the app and a user quietly
+    /// assuming it is broken.
+    public var lastDecisionDescription: String? {
+        PlainLanguage.decision(lastRationale)
+    }
 }
 
 // MARK: - AppEventSink
@@ -166,21 +183,19 @@ public enum LoginItemDisplay: Sendable, Equatable {
     case known(LoginItemStatus)
 }
 
-/// The seam the `Coordinator` actor will be wired into.
+/// The receiving end of `Coordinator.events`, named after what the App layer needs rather
+/// than after the actor that supplies it.
 ///
-/// The Coordinator is being written on `feat/runtime-coordinator` and this branch must not
-/// depend on its types at compile time, so the App layer declares what it needs to receive
-/// and the follow-up step adds one adapter that maps `CoordinatorEvent` onto these calls.
-/// The shape mirrors architecture.md §5.1's event list (`snapshotUpdated`, `transition`,
-/// `policyEvaluated`, `actionAcknowledged`) so that adapter stays a translation and not a
-/// second place where behaviour is decided.
+/// The shape mirrors architecture.md §5.1's event list, so `AppContainer.apply(_:)` stays a
+/// translation and not a second place where behaviour is decided. There is deliberately no
+/// sensor-only entry point: sensor health arrives folded into `snapshotUpdated`, which is the
+/// engine's settled view of all three axes at once, and a separate channel for it could put
+/// the menu's status line and its presence line at odds with each other.
 @MainActor
 public protocol AppEventSink: AnyObject {
     func snapshotUpdated(_ snapshot: ProximitySnapshot)
     func transitionOccurred(_ transition: ProximityTransition)
     func policyEvaluated(rationale: [PolicyRationale])
-    /// Sensor health straight from the Bluetooth adapter, for the pre-Coordinator wiring.
-    func sensorStatusChanged(_ status: SensorStatus)
 }
 
 extension AppModel: AppEventSink {
@@ -199,16 +214,4 @@ extension AppModel: AppEventSink {
         lastRationale = rationale
     }
 
-    /// Maps the adapter's `SensorStatus` onto the engine's `SensorHealth` axis.
-    ///
-    /// This is a stand-in for the Coordinator, which owns the real mapping (including the
-    /// `sensorRestored` presence reset). It sets only the sensor axis and never touches
-    /// presence, so it cannot manufacture a presence belief that no measurement supports.
-    public func sensorStatusChanged(_ status: SensorStatus) {
-        switch status {
-        case .available: sensorHealth = .healthy
-        case .degraded(let reason): sensorHealth = .degraded(reason)
-        case .unavailable(let reason): sensorHealth = .unavailable(reason)
-        }
-    }
 }
