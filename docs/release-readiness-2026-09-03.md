@@ -67,7 +67,7 @@ Raw BLE → effect path: `BLEObservation → ObservationValidator → SignalPipe
 
 1. SPIKE-009 distance/reboot/BT-toggle scenarios (all classes) and any iPhone evidence at all; SPIKE-007 repeated samples — require a person carrying the device / unlocking the Mac; tool and checklist are ready.
 2. Hands-on GUI walkthrough of `build/Threshold.app` (onboarding → calibration → lock/wake on a real departure). Headless equivalents are automated (`Tools/app-smoke`); only the visual layer and a real departure remain.
-3. Signing and notarization — Developer ID certificate, notarytool credentials, team ID (`docs/release.md` §4).
+3. Signing and notarization — Developer ID certificate, notarytool credentials, team ID. Everything that can be prepared without them is done: `scripts/sign-and-notarize.sh` (hardened runtime, notarize, staple, spctl; exits 2 without credentials) and `scripts/make-dmg.sh` (refuses unstapled bundles), both syntax-checked in CI (`docs/release.md` §4).
 4. Create a git remote and push so the CI workflow runs on GitHub (the repo currently has no remote; the session has no push permission).
 5. Product name trademark search before the first public release (README).
 
