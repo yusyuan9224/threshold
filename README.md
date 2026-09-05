@@ -4,7 +4,7 @@ English ｜ **[繁體中文](README.zh-TW.md)**
 
 > A security-first macOS proximity application that automatically protects the Mac when the user leaves and prepares it for secure native authentication when the user returns.
 
-**v1.0.0-beta.1** — working title **Threshold** (a trademark search is still pending before an official name). This is the first public release, and it is a **beta**: the primary path (an iPhone as the trusted device, Auto Lock, Wake on Return, native Touch ID / Apple Watch unlock) has real-device evidence, but the full SPIKE-009 device matrix, code signing / notarization, and a formal trademark check are still open — see [`docs/release-readiness-2026-09-03.md`](docs/release-readiness-2026-09-03.md) for the exact state this tag ships in. The project roadmap is maintainer-directed; ideas and pull requests are welcome, best started as an issue for anything non-trivial.
+**v1.0.0-beta.1** — working title **Threshold** (a trademark search is still pending before an official name). This is the first public release, and it is a **beta**: the primary path (an iPhone as the trusted device, Auto Lock, Wake on Return, native Touch ID / Apple Watch unlock) has real-device evidence, but the full SPIKE-009 device matrix, code signing / notarization, and a formal trademark check are still open — see [`docs/release-readiness-2026-09-03.md`](docs/release-readiness-2026-09-03.md) for the exact state this tag ships in, and [`docs/release-readiness-2026-09-05.md`](docs/release-readiness-2026-09-05.md) for where the project stands now, condition by condition. The project roadmap is maintainer-directed; ideas and pull requests are welcome, best started as an issue for anything non-trivial.
 
 ## About
 
@@ -152,7 +152,8 @@ What "CONDITIONAL" means: the SPIKE-009 §C bar (≥95% receiving, gap ≤10 s) 
 | `docs/spikes/` | SPIKE-001 … SPIKE-009 and their evidence |
 | `docs/plans/` | Implementation plans and the v1.0 recovery roadmap |
 | `docs/release.md` | The full path from a clean checkout to a distributable `.app`; signing and notarization are an external blocker |
-| `docs/release-readiness-2026-09-03.md` | The full v1.0 readiness report this beta ships against |
+| `docs/release-readiness-2026-09-05.md` | **Current** v1.0 readiness report — build/test results, spike outcomes, device matrix, known limitations, remaining blockers, and a condition-by-condition v1.0 status |
+| `docs/release-readiness-2026-09-03.md` | The frozen record of the state the `v1.0.0-beta.1` tag shipped against, including the two P0 defects real-device testing found and fixed |
 
 ## License
 

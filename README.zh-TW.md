@@ -4,7 +4,7 @@
 
 > 一款以安全為優先設計的 macOS 距離感應應用程式：使用者離開時自動保護 Mac，回來時把控制權交還給原生驗證機制。
 
-**v1.0.0-beta.1**——工作代號 **Threshold**（正式命名前需做商標檢索）。這是第一個公開發布版本，屬於 beta：核心路徑（iPhone 作為信任裝置、Auto Lock、Wake on Return、Touch ID／Apple Watch 原生解鎖）已有實機驗證，但完整的 SPIKE-009 裝置矩陣、簽章／notarization、商標檢索仍未完成——詳見 [`docs/release-readiness-2026-09-03.md`](docs/release-readiness-2026-09-03.md)。專案路線圖由維護者主導，歡迎透過 issue 討論想法或送 PR。
+**v1.0.0-beta.1**——工作代號 **Threshold**（正式命名前需做商標檢索）。這是第一個公開發布版本，屬於 beta：核心路徑（iPhone 作為信任裝置、Auto Lock、Wake on Return、Touch ID／Apple Watch 原生解鎖）已有實機驗證，但完整的 SPIKE-009 裝置矩陣、簽章／notarization、商標檢索仍未完成——該 tag 出貨當下的完整狀態見 [`docs/release-readiness-2026-09-03.md`](docs/release-readiness-2026-09-03.md)；專案目前進度與逐條 v1.0 條件狀態見 [`docs/release-readiness-2026-09-05.md`](docs/release-readiness-2026-09-05.md)。專案路線圖由維護者主導，歡迎透過 issue 討論想法或送 PR。
 
 ## 現況（2026-09-03）
 
@@ -138,6 +138,8 @@ Spike 產出的原始資料在 `Tools/spikes/out/`，**已 gitignore**：含 `CB
 | `docs/spikes/` | SPIKE-001 … SPIKE-009 與各自的 Evidence |
 | `docs/plans/` | Implementation plans 與 v1.0 recovery roadmap |
 | `docs/release.md` | 從 clean checkout 到可散布 `.app`；簽章與 notarization 為 external blocker |
+| `docs/release-readiness-2026-09-05.md` | **目前**的 v1.0 readiness report——build/test 結果、spike 結論、支援裝置矩陣、已知限制、外部阻擋，以及逐條 v1.0 條件狀態 |
+| `docs/release-readiness-2026-09-03.md` | `v1.0.0-beta.1` tag 出貨當下的凍結記錄，含實機測試找出並修好的兩個 P0 缺陷 |
 
 ## 授權
 
