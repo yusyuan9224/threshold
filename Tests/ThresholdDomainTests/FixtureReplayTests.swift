@@ -46,7 +46,10 @@ struct FixtureReplayTests {
         #expect(meta.scenario == name)
         #expect(meta.anonymized)
         #expect(["laptop", "desktop"].contains(meta.macClass))
-        #expect(["iphone", "watch", "beacon"].contains(meta.deviceClass))
+        // Mirrors `RecordOptions.deviceClasses` in Tools/rssi-record. The two cannot share a
+        // constant — this bundle deliberately never links that package — so they are kept in sync
+        // by hand, and each carries a comment pointing at the other.
+        #expect(["iphone", "watch", "ipad", "beacon"].contains(meta.deviceClass))
         #expect(!meta.recorder.isEmpty)
     }
 

@@ -168,7 +168,7 @@ whether the device was found at all and how long the first sighting took.
 - [ ] device idle 5 min, then 30 min, then 60 min — `--scenario device-locked-idle-30m`
       for the long one, 30 minutes of `--seconds 1800`
 - [ ] the same, for each device class you intend to support
-      (`--device-class iphone`, then `watch`, then `beacon`)
+      (`--device-class iphone`, then `watch`, then `ipad`, then `beacon`)
 
 ### §B Identity stability
 

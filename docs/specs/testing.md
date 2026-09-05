@@ -40,7 +40,7 @@ Implementation + Tests + Documentation + Diagnostics（若適用）+ No known se
 
 ## 3. Fixtures：`Tests/Fixtures/BLE/`
 
-- 格式：JSONL。第一行 metadata：`{"kind":"meta","macClass":"laptop|desktop","deviceClass":"iphone|watch|beacon","scenario":"...","recorder":"rssi-record x.y","anonymized":true}`；其後每行一個 `EngineInput`，`t` 為相對 `t0` 的毫秒整數。
+- 格式：JSONL。第一行 metadata：`{"kind":"meta","macClass":"laptop|desktop","deviceClass":"iphone|watch|ipad|beacon","scenario":"...","recorder":"rssi-record x.y","anonymized":true}`；其後每行一個 `EngineInput`，`t` 為相對 `t0` 的毫秒整數。
 - 匿名化：`DeviceID` → `device-A`／`device-B`；不含序號、MAC、名稱、wall-clock。
 - **MVP 2 前為合成檔**：`stable-near`、`stable-away`、`walking-away`、`walking-back`、`signal-spike`、`device-lost`、`bluetooth-off`、`departure-then-silent`、`sudden-silence-at-desk`、`wake-after-sleep`、`wifi-interference`。
 - **MVP 1B** 以 `Tools/rssi-record` 實錄取代；合成檔保留為最小回歸集。

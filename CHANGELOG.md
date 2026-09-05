@@ -4,6 +4,13 @@ All notable changes are recorded here. Format: Keep a Changelog; versions follow
 
 ## [Unreleased]
 
+### Fixed
+- `rssi-record` rejected `--device-class ipad`, so the recorder could not capture the one device class ADR-009 lists as CONDITIONAL with an open evidence gap — the tool was unable to collect the evidence the docs were waiting on. `ipad` is now an accepted class, in the recorder, in the fixture meta schema (`docs/specs/testing.md` §3), and in the fixture-replay assertion that mirrors it.
+
+### Added
+- First tests for `Tools/rssi-record` (17, argument parsing only — no radio, no filesystem): the device- and Mac-class allow-lists, identifier canonicalisation and duplicate rejection, the scenario restriction that keeps an advertised name out of a fixture, duration bounds, and unknown/dangling flag handling. CI now runs `swift test --package-path Tools/rssi-record` alongside the existing build step; previously the maintained recorder was only ever compiled, which is how the iPad defect survived.
+- Community health files: three issue forms (bug report asking for the de-identified diagnostics export; a trusted-device evidence report aimed at the open SPIKE-009 matrix; a proposal form), a pull-request template mirroring the CONTRIBUTING definition of done, `CODE_OF_CONDUCT.md`, and a social preview card committed with its HTML source so it can be regenerated rather than redrawn.
+
 ## [1.0.0-beta.1] - 2026-09-03
 
 First public release. **Beta**: real-device evidence covers the primary path (iPhone as trusted device, Auto Lock, Wake on Return, Touch ID and Apple Watch native unlock), but the full SPIKE-009 device matrix, code signing/notarization, and a public trademark check are still open — see `docs/release-readiness-2026-09-03.md` for the exact state this tag ships in.

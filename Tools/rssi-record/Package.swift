@@ -39,6 +39,13 @@ let package = Package(
                 .product(name: "ThresholdBluetooth", package: "Threshold"),
             ]
         ),
+        // Argument parsing only — no CoreBluetooth is exercised here, so this runs in CI on a
+        // machine with no radio. Testing the executable target directly works because the entry
+        // point is `@main` in RSSIRecord.swift rather than top-level code in a `main.swift`.
+        .testTarget(
+            name: "rssi-recordTests",
+            dependencies: ["rssi-record"]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

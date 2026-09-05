@@ -24,3 +24,8 @@ jobs:
         run: |
           swift build --package-path Tools/rssi-record
           swift build --package-path Tools/app-smoke
+      # rssi-record is the maintained recorder: its output is the replay corpus and the SPIKE-009
+      # evidence, so its argument contract is worth a test run, not just a build. Parsing only —
+      # no radio is touched, so this is safe on a hosted runner.
+      - name: Tools test
+        run: swift test --package-path Tools/rssi-record

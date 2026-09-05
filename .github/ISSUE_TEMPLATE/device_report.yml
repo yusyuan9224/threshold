@@ -21,9 +21,9 @@ body:
         `rssi-record` is built specifically so identifiers and advertised names can never reach its
         write path; use it rather than hand-pasting scan output.
 
-        **Known tool limitation:** `--device-class` currently accepts only `iphone`, `watch`, and
-        `beacon`. If you are measuring an iPad, say so here and file it anyway — the recorder needs a
-        small change first, and your report is what justifies making it.
+        `--device-class` accepts `iphone`, `watch`, `ipad`, and `beacon`. If you need a class that
+        is not on that list, file the report anyway and say which — the list is closed so that a
+        capture is always comparable with the existing runs, not to turn anyone away.
 
   - type: dropdown
     id: device-class

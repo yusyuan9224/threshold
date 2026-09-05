@@ -18,7 +18,7 @@ USAGE
   rssi-record record --device <identifier> [--device <identifier> ...]
                      --scenario <name>
                      --mac-class laptop|desktop
-                     --device-class iphone|watch|beacon
+                     --device-class iphone|watch|ipad|beacon
                      --seconds <n>
                      --out <file.jsonl>
                      [--profile <calibration.json>]
@@ -59,7 +59,16 @@ struct RecordOptions {
     let profile: CalibrationProfile?
 
     static let macClasses = ["laptop", "desktop"]
-    static let deviceClasses = ["iphone", "watch", "beacon"]
+    /// The classes a fixture may declare. This is a closed list on purpose: a capture is only
+    /// comparable with the SPIKE-009 runs if the class it was recorded under is one the matrix
+    /// actually names, and `FixtureReplayTests.metadataIsAnonymisedAndComplete` asserts the same
+    /// list from the other side. **Keep the two in sync** — they cannot share a constant, because
+    /// the root test bundle deliberately never links this package.
+    ///
+    /// `ipad` was missing until 2026-09-05, which meant the recorder rejected the one device class
+    /// ADR-009 lists as CONDITIONAL with an open evidence gap: the tool could not collect the
+    /// evidence needed to close the gap it was documented against.
+    static let deviceClasses = ["iphone", "watch", "ipad", "beacon"]
     /// 26 aliases: `device-A` ... `device-Z`.
     static let maxDevices = 26
     static let maxSeconds = 24 * 60 * 60
