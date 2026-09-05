@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/yusyuan9224/threshold/security/advisories/new
+    about: Never open a public issue for a vulnerability. Report it privately here — see SECURITY.md.
+  - name: What this release actually ships
+    url: https://github.com/yusyuan9224/threshold/blob/main/docs/release-readiness-2026-09-03.md
+    about: The v1.0 readiness report — measured behaviour, known limitations, and what is still unverified. Read this before filing "X doesn't work".
+  - name: Supported devices and their evidence
+    url: https://github.com/yusyuan9224/threshold/blob/main/docs/spikes/SPIKE-009-trusted-device-observability.md
+    about: Which device classes have real-device evidence, and which scenarios are still unmeasured.

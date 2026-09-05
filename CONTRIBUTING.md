@@ -3,6 +3,7 @@
 - License: Apache-2.0. Contributions use **DCO** — every commit needs `Signed-off-by:` (`git commit -s`). No CLA required.
 - Trademark: the name and icon are protected by TRADEMARK.md; forks may freely reuse the code but may not publish under the original name.
 - Report security issues privately per SECURITY.md.
+- Conduct: CODE_OF_CONDUCT.md applies to every project space.
 - Definition of done for any task: Implementation + Tests + Documentation + Diagnostics (where applicable) + no known security regression.
 - Undocumented APIs are allowed only inside `ThresholdSystem`, and must ship with a Fake and a spike.
 - **Roadmap**: the maintainer sets project direction and decides what ships toward v1.0. Bug fixes and small, well-scoped improvements are welcome as PRs directly. For anything larger — a new feature, a new supported-device class, a change to an accepted ADR — please open an issue first so the direction can be discussed before you invest the work.

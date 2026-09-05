@@ -1,0 +1,133 @@
+name: Bug report
+description: Something behaved differently from what the docs say it should do.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you paste anything:** never include a Bluetooth UUID, a MAC address, an advertised
+        device name, a hostname, a username, or a serial number in a public issue. Threshold's own
+        **Export diagnostics…** output is already de-identified (devices appear as `device-1`,
+        `device-2`), which is why it is the right thing to attach — see `docs/specs/security.md`.
+
+        This is a **beta**. Please check the [readiness report](https://github.com/yusyuan9224/threshold/blob/main/docs/release-readiness-2026-09-03.md)
+        §6 first — several behaviours that look like bugs are documented limitations, most commonly:
+        Wake on Return does not work from full *system* sleep (only display-asleep/locked), and
+        Auto Lock sleeps the display but does not lock unless "require password immediately after
+        sleep" is enabled in System Settings.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you observed, in the order you observed it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected instead
+      description: If a doc or spec says it should behave differently, link the line.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Enabled "Lock when I leave"
+        2. Walked to the next room with the trusted device
+        3. Waited 60 s
+        4. Display never slept
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app
+      options:
+        - Auto Lock (leave → lock)
+        - Wake on Return (return → display wakes)
+        - Onboarding / device picker
+        - Calibration
+        - Menu bar / settings UI
+        - Diagnostics export
+        - Build, tests, or the Tools/ CLIs
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: "Apple menu → About This Mac. Example: 26.6.2"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model identifier
+      description: "Output of `sysctl -n hw.model` — this is a model code, not a serial number. Example: Mac17,2"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Threshold version
+      description: "The version in the app's Settings window, or the commit SHA you built from. Example: 1.0.0-beta.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: How you built it
+      options:
+        - scripts/make-app-bundle.sh release
+        - scripts/make-app-bundle.sh debug
+        - swift run / swift build directly
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device-class
+    attributes:
+      label: Trusted device class
+      description: Only classes with real-device evidence are listed as supported (ADR-009).
+      options:
+        - iPhone
+        - Apple Watch
+        - iPad
+        - Another class (please say which in the description)
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics export
+      description: |
+        Menu bar icon → **Export diagnostics…** → save the JSON, then attach or paste it here.
+        This is the single most useful thing you can include: it contains the presence transitions,
+        the policy evaluation and its rationale, and the dispatched action and its outcome — which is
+        what turns "it didn't lock" into a diagnosable report. It is de-identified by design, and the
+        export fails closed if the privacy filter cannot confirm the result is clean.
+      render: json
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have read §6 "Known limitations" of the readiness report and this is not one of them.
+          required: true
+        - label: Nothing I pasted contains a UUID, MAC address, advertised device name, hostname, username, serial number, or Apple ID.
+          required: true

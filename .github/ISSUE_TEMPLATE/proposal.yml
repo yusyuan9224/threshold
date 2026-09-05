@@ -1,0 +1,71 @@
+name: Proposal / change discussion
+description: A new feature, a new supported-device class, or a change to an accepted ADR.
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Per `CONTRIBUTING.md`, the roadmap is maintainer-directed. Bug fixes and small, well-scoped
+        improvements are welcome as pull requests directly — **this template is for the larger things**,
+        where it is worth agreeing on direction before you invest the work.
+
+        Two proposals that will be declined on principle, so you do not waste your time:
+
+        - Anything that stores, types, or synthesizes the macOS login password. Authentication is
+          always handed back to macOS; there is no production path that touches a credential.
+        - Anything that treats missing evidence as confirmed absence, or that opens a fail-closed
+          precondition to make a feature work more often. That is ADR-008, and it is the reason the
+          app is trustworthy enough to be given a lock button at all.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is actually going wrong or missing today — not the solution yet.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: |
+        If it involves observing something new about the system, say which API — and whether it is
+        documented. Undocumented signals are allowed only inside `ThresholdSystem`, and only with a
+        Fake and a spike (`CONTRIBUTING.md`). Private frameworks and Accessibility permissions are
+        not allowed at all.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What evidence would settle it
+      description: |
+        This project's habit is that claims about real-world behaviour get measured before they get
+        implemented. If your proposal rests on "macOS does X", say how someone could check that —
+        ideally as a spike that could return NO-GO.
+
+  - type: checkboxes
+    id: touches
+    attributes:
+      label: Does this touch an accepted principle?
+      options:
+        - label: "ADR-003 — Domain owns temporal rules but never owns time."
+        - label: "ADR-008 — Absence of evidence is not evidence of absence."
+        - label: "ADR-009 — A device is supported only if its presence can be observed reliably through supported APIs."
+        - label: The security boundaries in `docs/specs/security.md`.
+        - label: None of these.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including "do nothing" — sometimes a documented limitation is the right answer.
+
+  - type: checkboxes
+    id: offer
+    attributes:
+      label: Implementation
+      options:
+        - label: I am willing to implement this myself if the direction is agreed.

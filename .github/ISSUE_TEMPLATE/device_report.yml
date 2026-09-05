@@ -1,0 +1,132 @@
+name: Trusted-device evidence report
+description: You ran a real-device measurement and want it counted toward the supported-device list.
+labels: ["evidence", "spike-009"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The supported-device list is evidence-based, not aspirational (ADR-009): a class is listed
+        only once SPIKE-009 has measurements for it. **This is the single most useful contribution
+        anyone outside the maintainer can make**, because the open gaps are hardware the maintainer
+        does not have, or scenarios that need a second person.
+
+        Currently open, from
+        [SPIKE-009](https://github.com/yusyuan9224/threshold/blob/main/docs/spikes/SPIKE-009-trusted-device-observability.md):
+        Apple Watch and iPad reboot / Bluetooth off→on / forget-and-re-pair identity stability; the
+        iPad distance matrix; generic BLE beacons entirely; and a 20-minute-per-segment rerun of the
+        iPhone distance matrix.
+
+        **The protocol is in [`Tools/rssi-record/README.md`](https://github.com/yusyuan9224/threshold/blob/main/Tools/rssi-record/README.md)** —
+        please follow it rather than improvising, so results are comparable with the existing runs.
+        `rssi-record` is built specifically so identifiers and advertised names can never reach its
+        write path; use it rather than hand-pasting scan output.
+
+        **Known tool limitation:** `--device-class` currently accepts only `iphone`, `watch`, and
+        `beacon`. If you are measuring an iPad, say so here and file it anyway — the recorder needs a
+        small change first, and your report is what justifies making it.
+
+  - type: dropdown
+    id: device-class
+    attributes:
+      label: Device class measured
+      options:
+        - iPhone
+        - Apple Watch
+        - iPad
+        - Generic BLE beacon
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scenario
+    attributes:
+      label: Scenario
+      options:
+        - Distance matrix (controlled segments at fixed distances)
+        - Identity stability across a device reboot
+        - Identity stability across Bluetooth off → on
+        - Identity stability across forget-and-re-pair
+        - Long uncontrolled run (stability / gap distribution)
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Physical setup
+      description: |
+        Distances, and what was between the Mac and the device (open air, pocket, closed door, wall).
+        Whether the device was locked and screen-off. Whether a Watch was actually worn — an unworn
+        Watch behaves differently.
+      placeholder: |
+        1 m on the desk, open air, iPhone locked and screen off, 600 s
+        3 m in a trouser pocket, same room, 600 s
+        8 m in the next room behind a closed door, 600 s
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model identifier
+      description: "Output of `sysctl -n hw.model` — a model code, not a serial number. Example: Mac17,2"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: "Example: 26.6.2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The exact rssi-record command(s) you ran
+      description: Redact the `--device` UUID as `<uuid>` — it is a real identifier and must not appear here.
+      placeholder: |
+        rssi-record record --device <uuid> --scenario desk-1m --mac-class laptop \
+          --device-class iphone --seconds 600 --out desk-1m.jsonl
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: The metrics table rssi-record printed
+      description: |
+        Paste the summary table verbatim — its columns are `device`, `samples`, `recv%`, `maxGap s`,
+        `median`, `MAD`. Device aliases (`device-A` …) are safe to include; they are per-run aliases,
+        not identifiers. The SPIKE-009 §C bar is **≥95% receiving and a longest gap ≤10 s**.
+      placeholder: |
+        device    samples  recv%  maxGap s  median  MAD
+        device-A  774      100.0  10.2      -50     2.5
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: interpretation
+    attributes:
+      label: What you think it shows
+      description: |
+        Optional but valuable — especially anything the numbers alone would hide: a gap that lined up
+        with something physical, RSSI that was not monotonic with distance, or behaviour that differed
+        from the existing documented runs.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I followed the protocol in `Tools/rssi-record/README.md` (or described exactly where I deviated).
+          required: true
+        - label: Nothing I pasted contains a UUID, MAC address, advertised device name, hostname, username, serial number, or Apple ID.
+          required: true
+        - label: I understand results are recorded only as measured — no conclusion is written into a spike document before its experiment has actually run.
+          required: true

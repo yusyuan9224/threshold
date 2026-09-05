@@ -1,0 +1,145 @@
+<title>Threshold — social preview source</title>
+<!--
+  Source for the GitHub social preview card (docs/social-preview.png).
+
+  GitHub's social preview is a repository *setting*, not a file it picks up from the tree:
+  Settings → General → Social preview → Upload an image. The PNG is committed next to this file so
+  the card can be regenerated and re-uploaded from source rather than redrawn by hand.
+
+  Regenerate:
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless --disable-gpu --window-size=1280,640 --default-background-color=0 \
+      --screenshot=docs/social-preview.png docs/social-preview.html
+
+  1280x640 is GitHub's recommended size. Everything is drawn at that fixed canvas, so type sizes
+  here are absolute rather than fluid — this page is never viewed responsively.
+  Palette matches docs/index.html.
+-->
+<style>
+  :root{
+    --bg:#0a0d12;
+    --line:#1e2733;
+    --text:#e8edf3;
+    --text-dim:#93a1b3;
+    --text-faint:#5b6b80;
+    --accent:#42e8b4;
+    --accent-dim:#1f6e57;
+    --accent-glow:rgba(66,232,180,.16);
+    /* Explicit zero-alpha accent rather than `transparent`: the keyword is transparent *black*,
+       which some engines interpolate through and leave a grey fringe on a dark ground. */
+    --accent-clear:rgba(66,232,180,0);
+    --font-display: -apple-system, "SF Pro Display", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Menlo", monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1280px;height:640px;overflow:hidden}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-display);
+    -webkit-font-smoothing:antialiased;
+    display:flex;align-items:center;
+    position:relative;
+  }
+
+  /* Ambient glow behind the radar, bled off the right edge. */
+  .glow{
+    position:absolute;right:-180px;top:50%;transform:translateY(-50%);
+    width:820px;height:820px;border-radius:50%;
+    background:radial-gradient(circle, var(--accent-glow) 0%, var(--accent-clear) 62%);
+  }
+
+  .copy{position:relative;z-index:1;padding:0 0 0 88px;max-width:730px}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:9px 18px;border-radius:999px;
+    background:var(--accent-glow);border:1px solid var(--accent-dim);
+    color:var(--accent);
+    font-size:19px;font-weight:650;letter-spacing:.02em;
+    font-family:var(--font-mono);
+  }
+  .badge::before{
+    content:"";width:9px;height:9px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 12px var(--accent);
+  }
+
+  h1{
+    margin-top:30px;
+    font-size:104px;line-height:1;font-weight:700;letter-spacing:-.035em;
+  }
+
+  .tagline{
+    margin-top:26px;
+    font-size:35px;line-height:1.3;font-weight:560;letter-spacing:-.012em;
+    color:var(--text);
+  }
+
+  .sub{
+    margin-top:22px;
+    font-size:22px;line-height:1.5;color:var(--text-dim);font-weight:450;
+  }
+  .sub b{color:var(--accent);font-weight:600}
+
+  .repo{
+    position:absolute;left:88px;bottom:52px;z-index:1;
+    font-family:var(--font-mono);font-size:19px;color:var(--text-faint);
+    letter-spacing:.01em;
+  }
+
+  /* Static radar: same motif as the landing page hero, without the sweep animation. */
+  .radar{
+    position:absolute;right:96px;top:50%;transform:translateY(-50%);
+    width:420px;height:420px;
+  }
+  .ring{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    border-radius:50%;border:1px solid var(--line);
+  }
+  .r1{width:100%;height:100%}
+  .r2{width:73%;height:73%}
+  .r3{width:46%;height:46%}
+  .r4{width:19%;height:19%;border-color:var(--accent-dim)}
+  .core{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:15px;height:15px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 26px 5px var(--accent-glow);
+  }
+  .sweep{
+    position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 205deg, var(--accent-glow), var(--accent-clear) 27%);
+  }
+  .blip{
+    position:absolute;width:11px;height:11px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 16px 3px var(--accent-glow);
+  }
+  .b1{top:25%;left:69%}
+  .b2{top:63%;left:24%;opacity:.55}
+  .b3{top:79%;left:63%;opacity:.3}
+</style>
+
+<div class="glow"></div>
+
+<div class="copy">
+  <span class="badge">v1.0.0-beta.1 · macOS 14+</span>
+  <h1>Threshold</h1>
+  <p class="tagline">Your Mac locks itself the moment you leave.</p>
+  <p class="sub">
+    Bluetooth proximity, <b>observation only</b> — it never connects to your phone,
+    never handles your password, and fails closed when the evidence is thin.
+  </p>
+</div>
+
+<div class="repo">github.com/yusyuan9224/threshold</div>
+
+<div class="radar">
+  <div class="sweep"></div>
+  <div class="ring r1"></div>
+  <div class="ring r2"></div>
+  <div class="ring r3"></div>
+  <div class="ring r4"></div>
+  <div class="blip b1"></div>
+  <div class="blip b2"></div>
+  <div class="blip b3"></div>
+  <div class="core"></div>
+</div>
